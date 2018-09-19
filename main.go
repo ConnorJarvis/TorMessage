@@ -25,8 +25,8 @@ type RSA interface {
 type AES interface {
 	Encrypt([]byte, []byte, []byte) ([]byte, error)
 	Decrypt([]byte, []byte, []byte) ([]byte, error)
-	GenerateKey(io.Reader) ([]byte, error)
-	GenerateNonce(io.Reader) ([]byte, error)
+	GenerateAESKey(io.Reader) ([]byte, error)
+	GenerateAESNonce(io.Reader) ([]byte, error)
 }
 
 type Message struct {

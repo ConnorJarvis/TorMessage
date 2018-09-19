@@ -48,7 +48,7 @@ func (e *aesTools) Decrypt(data []byte, key []byte, nonce []byte) ([]byte, error
 	return plaintext, nil
 }
 
-func (e *aesTools) GenerateKey(rand io.Reader) ([]byte, error) {
+func (e *aesTools) GenerateAESKey(rand io.Reader) ([]byte, error) {
 	key := make([]byte, 32)
 	_, err := io.ReadFull(rand, key)
 	if err != nil {
@@ -57,7 +57,7 @@ func (e *aesTools) GenerateKey(rand io.Reader) ([]byte, error) {
 	return key, nil
 }
 
-func (e *aesTools) GenerateNonce(rand io.Reader) ([]byte, error) {
+func (e *aesTools) GenerateAESNonce(rand io.Reader) ([]byte, error) {
 	nonce := make([]byte, 12)
 	_, err := io.ReadFull(rand, nonce)
 	if err != nil {

@@ -70,36 +70,36 @@ func BenchmarkDecrypt(b *testing.B) {
 	}
 }
 
-func TestGenerateKey(t *testing.T) {
+func TestGenerateAESKey(t *testing.T) {
 	e := NewAES()
-	_, err := e.GenerateKey(rand.Reader)
+	_, err := e.GenerateAESKey(rand.Reader)
 	if err != nil {
 		t.Error(err)
 	}
 }
 
-func BenchmarkGenerateKey(b *testing.B) {
+func BenchmarkGenerateAESKey(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		e := NewAES()
-		_, err := e.GenerateKey(rand.Reader)
+		_, err := e.GenerateAESKey(rand.Reader)
 		if err != nil {
 			b.Error(err)
 		}
 	}
 }
 
-func TestGenerateNonce(t *testing.T) {
+func TestGenerateAESNonce(t *testing.T) {
 	e := NewAES()
-	_, err := e.GenerateNonce(rand.Reader)
+	_, err := e.GenerateAESNonce(rand.Reader)
 	if err != nil {
 		t.Error(err)
 	}
 }
 
-func BenchmarkGenerateNonce(b *testing.B) {
+func BenchmarkGenerateAESNonce(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		e := NewAES()
-		_, err := e.GenerateNonce(rand.Reader)
+		_, err := e.GenerateAESNonce(rand.Reader)
 		if err != nil {
 			b.Error(err)
 		}
