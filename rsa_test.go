@@ -49,7 +49,7 @@ func BenchmarkSignMessage(b *testing.B) {
 	}
 }
 
-func TestverifyMessage(t *testing.T) {
+func TestVerifyMessage(t *testing.T) {
 	e := NewRSA()
 	privateKey, publicKey, err := e.GenerateKey(rand.Reader)
 	if err != nil {
@@ -65,7 +65,7 @@ func TestverifyMessage(t *testing.T) {
 	}
 }
 
-func BenchmarkverifyMessage(b *testing.B) {
+func BenchmarkVerifyMessage(b *testing.B) {
 	e := NewRSA()
 	privateKey, publicKey, err := e.GenerateKey(rand.Reader)
 	if err != nil {
