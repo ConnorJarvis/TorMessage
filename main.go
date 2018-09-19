@@ -7,7 +7,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/gob"
-	"fmt"
 	"io"
 )
 
@@ -22,6 +21,12 @@ type RSA interface {
 	GenerateKey(io.Reader) (*rsa.PrivateKey, *rsa.PublicKey, error)
 	SignMessage(io.Reader, rsa.PrivateKey, Message) (*Message, error)
 	VerifyMessage(io.Reader, rsa.PublicKey, Message) error
+}
+type AES interface {
+	Encrypt([]byte, []byte, []byte) ([]byte, error)
+	Decrypt([]byte, []byte, []byte) ([]byte, error)
+	GenerateKey(io.Reader) ([]byte, error)
+	GenerateNonce(io.Reader) ([]byte, error)
 }
 
 type Message struct {
@@ -66,40 +71,46 @@ var account AccountInfo
 
 func main() {
 
-	rsaTool := NewRSA()
-	privateKey, publicKey, err := rsaTool.GenerateKey(rand.Reader)
-	if err != nil {
-		fmt.Println(err)
-	}
-	hostname := "127.0.0.1:9000"
-	var messageKeys []MessageKey
-	key := make([]byte, 32)
-	nonce := make([]byte, 12)
-	_, err = io.ReadFull(rand.Reader, key)
-	_, err = io.ReadFull(rand.Reader, nonce)
-	initalMessageKey := &MessageKey{
-		ID:    0,
-		Key:   key,
-		Nonce: nonce,
-	}
-	messageKeys = append(messageKeys, *initalMessageKey)
-	key = make([]byte, 32)
-	nonce = make([]byte, 12)
-	_, err = io.ReadFull(rand.Reader, key)
-	_, err = io.ReadFull(rand.Reader, nonce)
-	initalMessageKey = &MessageKey{
-		ID:    1,
-		Key:   key,
-		Nonce: nonce,
-	}
-	messageKeys = append(messageKeys, *initalMessageKey)
-	account = AccountInfo{
-		Hostname:    hostname,
-		PrivateKey:  *privateKey,
-		PublicKey:   *publicKey,
-		MessageKeys: messageKeys,
-		IDIndex:     0,
-	}
+	// rsaTool := NewRSA()
+	// privateKey, publicKey, err := rsaTool.GenerateKey(rand.Reader)
+	// if err != nil {
+	// 	fmt.Println(err)
+	// }
+	// hostname := "127.0.0.1:9000"
+	// var messageKeys []MessageKey
+	// key := make([]byte, 32)
+	// nonce := make([]byte, 12)
+	// _, err = io.ReadFull(rand.Reader, key)
+	// _, err = io.ReadFull(rand.Reader, nonce)
+	// e := NewAES()
+	// message := []byte{116, 101, 115, 116}
+	// key = []byte{125, 108, 205, 217, 117, 220, 43, 125, 8, 231, 236, 166, 66, 244, 203, 229, 48, 16, 205, 91, 247, 53, 67, 122, 104, 4, 248, 136, 99, 106, 245, 168}
+	// nonce = []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101}
+	// cipherText, err := e.Encrypt(message, key, nonce)
+	// fmt.Println(cipherText)
+	// initalMessageKey := &MessageKey{
+	// 	ID:    0,
+	// 	Key:   key,
+	// 	Nonce: nonce,
+	// }
+	// messageKeys = append(messageKeys, *initalMessageKey)
+	// key = make([]byte, 32)
+	// nonce = make([]byte, 12)
+	// _, err = io.ReadFull(rand.Reader, key)
+	// _, err = io.ReadFull(rand.Reader, nonce)
+	// initalMessageKey = &MessageKey{
+	// 	ID:    1,
+	// 	Key:   key,
+	// 	Nonce: nonce,
+	// }
+	// messageKeys = append(messageKeys, *initalMessageKey)
+	// account = AccountInfo{
+	// 	Hostname:    hostname,
+	// 	PrivateKey:  *privateKey,
+	// 	PublicKey:   *publicKey,
+	// 	MessageKeys: messageKeys,
+	// 	IDIndex:     0,
+	// }
 
 }
 
