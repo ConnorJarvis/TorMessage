@@ -8,4 +8,6 @@ install: go get golang.org/x/crypto/curve25519
 
 script:
 - go get github.com/ConnorJarvis/TorMessage
-- go test github.com/ConnorJarvis/TorMessage -v
+- go test -v -covermode=count -coverprofile=coverage.out
+- $HOME/gopath/bin/goveralls -coverprofile=coverage.out -service=travis-ci -repotoken $repo_token
+
