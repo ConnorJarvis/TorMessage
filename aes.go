@@ -125,7 +125,7 @@ func (e *aesTools) DecryptMessage(data []byte, key []byte, nonce []byte, message
 		return nil, err
 	}
 	initalBytes := bytes.Buffer{}
-	initalBytes.Write([]byte(plaintext))
+	initalBytes.Write(plaintext)
 	decoder := gob.NewDecoder(&initalBytes)
 
 	if messageType == 1 {
