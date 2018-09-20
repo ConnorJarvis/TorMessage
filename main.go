@@ -15,7 +15,7 @@ type ECDH interface {
 }
 
 type RSA interface {
-	GenerateKey(io.Reader) (*rsa.PrivateKey, *rsa.PublicKey, error)
+	GenerateRSAKey(io.Reader) (*rsa.PrivateKey, *rsa.PublicKey, error)
 	SignMessage(io.Reader, rsa.PrivateKey, MessageEncrypted) (*MessageEncrypted, error)
 	VerifyMessage(io.Reader, rsa.PublicKey, MessageEncrypted) error
 }
@@ -24,18 +24,21 @@ type AES interface {
 	Decrypt([]byte, []byte, []byte) ([]byte, error)
 	GenerateAESKey(io.Reader) ([]byte, error)
 	GenerateAESNonce(io.Reader) ([]byte, error)
+	EncryptHeader(Header, []byte, []byte) ([]byte, error)
+	DecryptHeader([]byte, []byte, []byte) (*Header, error)
 }
 
 type MessageEncrypted struct {
 	ID               int
-	Nonce            []byte
+	HeaderNonce      []byte
+	MessageNonce     []byte
 	Header           []byte
 	Message          []byte
 	HeaderSignature  []byte
 	MessageSignature []byte
 }
 
-type MessageDecrypted struct {
+type MessageUnencrypted struct {
 	ID               int
 	Nonce            []byte
 	Header           Header
@@ -74,7 +77,7 @@ type MessageKey struct {
 	Key []byte
 }
 
-type AccountInfo struct {
+type ConversationInfo struct {
 	Hostname                        string
 	PrivateKey                      rsa.PrivateKey
 	PublicKey                       rsa.PublicKey
@@ -96,7 +99,7 @@ func init() {
 	gob.Register(TextMessage{})
 }
 
-var account AccountInfo
+var conversation ConversationInfo
 
 func main() {
 

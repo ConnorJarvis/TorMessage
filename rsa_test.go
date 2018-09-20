@@ -7,7 +7,7 @@ import (
 
 func TestGenerateKey(t *testing.T) {
 	e := NewRSA()
-	_, _, err := e.GenerateKey(rand.Reader)
+	_, _, err := e.GenerateRSAKey(rand.Reader)
 	if err != nil {
 		t.Error(err)
 	}
@@ -16,7 +16,7 @@ func TestGenerateKey(t *testing.T) {
 func BenchmarkGenerateKey(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		e := NewRSA()
-		_, _, err := e.GenerateKey(rand.Reader)
+		_, _, err := e.GenerateRSAKey(rand.Reader)
 		if err != nil {
 			b.Error(err)
 		}
@@ -25,13 +25,12 @@ func BenchmarkGenerateKey(b *testing.B) {
 
 func TestSignMessage(t *testing.T) {
 	e := NewRSA()
-	privateKey, _, err := e.GenerateKey(rand.Reader)
+	privateKey, _, err := e.GenerateRSAKey(rand.Reader)
 	if err != nil {
 		t.Error(err)
 	}
 	message := MessageEncrypted{
 		ID:      1,
-		Nonce:   []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101},
 		Header:  []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101},
 		Message: []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101},
 	}
@@ -43,13 +42,12 @@ func TestSignMessage(t *testing.T) {
 
 func BenchmarkSignMessage(b *testing.B) {
 	e := NewRSA()
-	privateKey, _, err := e.GenerateKey(rand.Reader)
+	privateKey, _, err := e.GenerateRSAKey(rand.Reader)
 	if err != nil {
 		b.Error(err)
 	}
 	message := MessageEncrypted{
 		ID:      1,
-		Nonce:   []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101},
 		Header:  []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101},
 		Message: []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101},
 	}
@@ -63,13 +61,12 @@ func BenchmarkSignMessage(b *testing.B) {
 
 func TestVerifyMessage(t *testing.T) {
 	e := NewRSA()
-	privateKey, publicKey, err := e.GenerateKey(rand.Reader)
+	privateKey, publicKey, err := e.GenerateRSAKey(rand.Reader)
 	if err != nil {
 		t.Error(err)
 	}
 	message := MessageEncrypted{
 		ID:      1,
-		Nonce:   []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101},
 		Header:  []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101},
 		Message: []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101},
 	}
@@ -85,13 +82,12 @@ func TestVerifyMessage(t *testing.T) {
 
 func BenchmarkVerifyMessage(b *testing.B) {
 	e := NewRSA()
-	privateKey, publicKey, err := e.GenerateKey(rand.Reader)
+	privateKey, publicKey, err := e.GenerateRSAKey(rand.Reader)
 	if err != nil {
 		b.Error(err)
 	}
 	message := MessageEncrypted{
 		ID:      1,
-		Nonce:   []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101},
 		Header:  []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101},
 		Message: []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101},
 	}

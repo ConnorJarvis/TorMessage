@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"encoding/gob"
 	"io"
 )
 
@@ -64,4 +66,39 @@ func (e *aesTools) GenerateAESNonce(rand io.Reader) ([]byte, error) {
 		return nil, err
 	}
 	return nonce, nil
+}
+
+func (e *aesTools) EncryptHeader(header Header, key []byte, nonce []byte) ([]byte, error) {
+	bytes := bytes.Buffer{}
+	encoder := gob.NewEncoder(&bytes)
+	err := encoder.Encode(header)
+	if err != nil {
+		return nil, err
+	}
+	ciphertext, err := e.Encrypt(bytes.Bytes(), key, nonce)
+	if err != nil {
+		return nil, err
+	}
+	return ciphertext, nil
+
+}
+
+func (e *aesTools) DecryptHeader(data []byte, key []byte, nonce []byte) (*Header, error) {
+
+	plaintext, err := e.Decrypt(data, key, nonce)
+	if err != nil {
+		return nil, err
+	}
+
+	header := Header{}
+	initalBytes := bytes.Buffer{}
+	initalBytes.Write([]byte(plaintext))
+
+	decoder := gob.NewDecoder(&initalBytes)
+	err = decoder.Decode(&header)
+	if err != nil {
+		return nil, err
+	}
+
+	return &header, nil
 }
