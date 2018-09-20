@@ -11,7 +11,5 @@ install:
 
 script:
 - go get github.com/ConnorJarvis/TorMessage
-- go test -race -coverprofile=coverage.txt -covermode=atomic
-
-after_success:
-  - bash <(curl -s https://codecov.io/bash)
+- go test -v -covermode=count -coverprofile=coverage.out
+- $HOME/gopath/bin/goveralls -coverprofile=coverage.out -service=travis-ci -repotoken $repo_token
