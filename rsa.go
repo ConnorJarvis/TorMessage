@@ -23,21 +23,45 @@ func (e *rsaTools) GenerateKey(rand io.Reader) (*rsa.PrivateKey, *rsa.PublicKey,
 	return privateKey, &privateKey.PublicKey, nil
 }
 
-func (e *rsaTools) SignMessage(rand io.Reader, privateKey rsa.PrivateKey, message Message) (*Message, error) {
-	h := sha256.New()
-	h.Write(message.Message)
-	d := h.Sum(nil)
-	signature, err := rsa.SignPKCS1v15(rand, &privateKey, crypto.SHA256, d)
+func (e *rsaTools) SignMessage(rand io.Reader, privateKey rsa.PrivateKey, message MessageEncrypted) (*MessageEncrypted, error) {
+	messageHasher := sha256.New()
+	messageHasher.Write(message.Message)
+	messageHash := messageHasher.Sum(nil)
+
+	headerHasher := sha256.New()
+	headerHasher.Write(message.Header)
+	headerHash := headerHasher.Sum(nil)
+
+	messageSignature, err := rsa.SignPKCS1v15(rand, &privateKey, crypto.SHA256, messageHash)
 	if err != nil {
 		return nil, err
 	}
-	message.Signature = signature
+
+	headerSignature, err := rsa.SignPKCS1v15(rand, &privateKey, crypto.SHA256, headerHash)
+	if err != nil {
+		return nil, err
+	}
+
+	message.MessageSignature = messageSignature
+	message.HeaderSignature = headerSignature
 	return &message, nil
 }
 
-func (e *rsaTools) VerifyMessage(rand io.Reader, publicKey rsa.PublicKey, message Message) error {
-	h := sha256.New()
-	h.Write(message.Message)
-	d := h.Sum(nil)
-	return rsa.VerifyPKCS1v15(&publicKey, crypto.SHA256, d, message.Signature)
+func (e *rsaTools) VerifyMessage(rand io.Reader, publicKey rsa.PublicKey, message MessageEncrypted) error {
+	messageHasher := sha256.New()
+	messageHasher.Write(message.Message)
+	messageHash := messageHasher.Sum(nil)
+
+	headerHasher := sha256.New()
+	headerHasher.Write(message.Header)
+	headerHash := headerHasher.Sum(nil)
+	err := rsa.VerifyPKCS1v15(&publicKey, crypto.SHA256, messageHash, message.MessageSignature)
+	if err != nil {
+		return err
+	}
+	err = rsa.VerifyPKCS1v15(&publicKey, crypto.SHA256, headerHash, message.HeaderSignature)
+	if err != nil {
+		return err
+	}
+	return nil
 }

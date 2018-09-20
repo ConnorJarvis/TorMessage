@@ -2,9 +2,6 @@ package main
 
 import (
 	"crypto"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
 	"crypto/rsa"
 	"encoding/gob"
 	"io"
@@ -19,8 +16,8 @@ type ECDH interface {
 
 type RSA interface {
 	GenerateKey(io.Reader) (*rsa.PrivateKey, *rsa.PublicKey, error)
-	SignMessage(io.Reader, rsa.PrivateKey, Message) (*Message, error)
-	VerifyMessage(io.Reader, rsa.PublicKey, Message) error
+	SignMessage(io.Reader, rsa.PrivateKey, MessageEncrypted) (*MessageEncrypted, error)
+	VerifyMessage(io.Reader, rsa.PublicKey, MessageEncrypted) error
 }
 type AES interface {
 	Encrypt([]byte, []byte, []byte) ([]byte, error)
@@ -29,150 +26,78 @@ type AES interface {
 	GenerateAESNonce(io.Reader) ([]byte, error)
 }
 
-type Message struct {
-	ID        int
-	Message   []byte
-	Signature []byte
-}
-type MessageInitial struct {
-	ID      int
-	Message rsa.PublicKey
+type MessageEncrypted struct {
+	ID               int
+	Nonce            []byte
+	Header           []byte
+	Message          []byte
+	HeaderSignature  []byte
+	MessageSignature []byte
 }
 
-type AccountInfo struct {
-	Hostname         string
-	PrivateKey       rsa.PrivateKey
-	PublicKey        rsa.PublicKey
-	MessageKeys      []MessageKey
-	IDIndex          int
-	PartnerPublicKey rsa.PublicKey
-	PartnerHostname  string
+type MessageDecrypted struct {
+	ID               int
+	Nonce            []byte
+	Header           Header
+	Message          interface{}
+	HeaderSignature  []byte
+	MessageSignature []byte
+}
+
+type Header struct {
+	MessageVersion int
+	MessageType    int
+	Hostname       string
+}
+
+type InitialMessage struct {
+	PublicKey    rsa.PublicKey
+	DHPublicKeys []MessageKeyInitializers
+}
+
+type NegotiateKeysMessage struct {
+	DHPublicKeys []MessageKeyInitializers
+}
+
+type TextMessage struct {
+	Message string
+}
+
+type MessageKeyInitializers struct {
+	ID         int
+	PublicKey  rsa.PublicKey
+	PrivateKey rsa.PrivateKey
 }
 
 type MessageKey struct {
-	ID    int
-	Key   []byte
-	Nonce []byte
+	ID  int
+	Key []byte
 }
 
-type MessageKeyInit struct {
-	ID         int
-	Nonce      []byte
-	PublicKey  crypto.PublicKey
-	PrivateKey crypto.PrivateKey
+type AccountInfo struct {
+	Hostname                        string
+	PrivateKey                      rsa.PrivateKey
+	PublicKey                       rsa.PublicKey
+	SendingMessageKeys              []MessageKey
+	SendingMessageKeyInitializers   []MessageKeyInitializers
+	ReceivingMessageKeys            []MessageKey
+	REceivingMessageKeyInitializers []MessageKeyInitializers
+	SendingMessageIndex             int
+	RecievingMessageIndex           int
+	PartnerPublicKey                rsa.PublicKey
+	PartnerHostname                 string
 }
 
 func init() {
-	gob.Register(Message{})
-	gob.Register(MessageInitial{})
+	gob.Register(MessageEncrypted{})
+	gob.Register(Header{})
+	gob.Register(InitialMessage{})
+	gob.Register(NegotiateKeysMessage{})
+	gob.Register(TextMessage{})
 }
 
 var account AccountInfo
 
 func main() {
 
-	// rsaTool := NewRSA()
-	// privateKey, publicKey, err := rsaTool.GenerateKey(rand.Reader)
-	// if err != nil {
-	// 	fmt.Println(err)
-	// }
-	// hostname := "127.0.0.1:9000"
-	// var messageKeys []MessageKey
-	// key := make([]byte, 32)
-	// nonce := make([]byte, 12)
-	// _, err = io.ReadFull(rand.Reader, key)
-	// _, err = io.ReadFull(rand.Reader, nonce)
-	// e := NewAES()
-	// message := []byte{116, 101, 115, 116}
-	// key = []byte{125, 108, 205, 217, 117, 220, 43, 125, 8, 231, 236, 166, 66, 244, 203, 229, 48, 16, 205, 91, 247, 53, 67, 122, 104, 4, 248, 136, 99, 106, 245, 168}
-	// nonce = []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101}
-	// cipherText, err := e.Encrypt(message, key, nonce)
-	// fmt.Println(cipherText)
-	// initalMessageKey := &MessageKey{
-	// 	ID:    0,
-	// 	Key:   key,
-	// 	Nonce: nonce,
-	// }
-	// messageKeys = append(messageKeys, *initalMessageKey)
-	// key = make([]byte, 32)
-	// nonce = make([]byte, 12)
-	// _, err = io.ReadFull(rand.Reader, key)
-	// _, err = io.ReadFull(rand.Reader, nonce)
-	// initalMessageKey = &MessageKey{
-	// 	ID:    1,
-	// 	Key:   key,
-	// 	Nonce: nonce,
-	// }
-	// messageKeys = append(messageKeys, *initalMessageKey)
-	// account = AccountInfo{
-	// 	Hostname:    hostname,
-	// 	PrivateKey:  *privateKey,
-	// 	PublicKey:   *publicKey,
-	// 	MessageKeys: messageKeys,
-	// 	IDIndex:     0,
-	// }
-
-}
-
-func decryptMessage(message Message, account AccountInfo) (*Message, error) {
-	messageKey := account.MessageKeys[message.ID]
-	rsaTool := NewRSA()
-	err := rsaTool.VerifyMessage(rand.Reader, account.PartnerPublicKey, message)
-	if err != nil {
-		return nil, err
-	}
-	decryptedMessage, err := aesDecrypt(message.Message, messageKey.Key, messageKey.Nonce)
-	if err != nil {
-		return nil, err
-	}
-	return &Message{ID: message.ID, Message: decryptedMessage, Signature: message.Signature}, nil
-
-}
-
-func encryptMessage(index int, message string, account AccountInfo) (*Message, error) {
-	messageKey := account.MessageKeys[index]
-	encryptedMessage, err := aesEncrypt([]byte(message), messageKey.Key, messageKey.Nonce)
-	if err != nil {
-		return nil, err
-	}
-	rsaTool := NewRSA()
-	messageSignature, err := rsaTool.SignMessage(rand.Reader, account.PrivateKey, Message{ID: index, Message: encryptedMessage})
-	if err != nil {
-		return nil, err
-	}
-	return messageSignature, nil
-}
-
-func aesEncrypt(data []byte, key []byte, nonce []byte) ([]byte, error) {
-
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-
-	aesgcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-	ciphertext := aesgcm.Seal(nil, nonce, data, nil)
-	return ciphertext, nil
-}
-
-func aesDecrypt(data []byte, key []byte, nonce []byte) ([]byte, error) {
-
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-
-	plaintext, err := gcm.Open(nil, nonce, data, nil)
-	if err != nil {
-		return nil, err
-	}
-	return plaintext, nil
 }

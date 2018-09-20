@@ -29,7 +29,13 @@ func TestSignMessage(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	_, err = e.SignMessage(rand.Reader, *privateKey, Message{ID: 1, Message: []byte("test")})
+	message := MessageEncrypted{
+		ID:      1,
+		Nonce:   []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101},
+		Header:  []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101},
+		Message: []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101},
+	}
+	_, err = e.SignMessage(rand.Reader, *privateKey, message)
 	if err != nil {
 		t.Error(err)
 	}
@@ -41,8 +47,14 @@ func BenchmarkSignMessage(b *testing.B) {
 	if err != nil {
 		b.Error(err)
 	}
+	message := MessageEncrypted{
+		ID:      1,
+		Nonce:   []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101},
+		Header:  []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101},
+		Message: []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101},
+	}
 	for i := 0; i < b.N; i++ {
-		_, err = e.SignMessage(rand.Reader, *privateKey, Message{ID: 1, Message: []byte("test")})
+		_, err = e.SignMessage(rand.Reader, *privateKey, message)
 		if err != nil {
 			b.Error(err)
 		}
@@ -55,11 +67,17 @@ func TestVerifyMessage(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	message, err := e.SignMessage(rand.Reader, *privateKey, Message{ID: 1, Message: []byte("test")})
+	message := MessageEncrypted{
+		ID:      1,
+		Nonce:   []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101},
+		Header:  []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101},
+		Message: []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101},
+	}
+	signedMessage, err := e.SignMessage(rand.Reader, *privateKey, message)
 	if err != nil {
 		t.Error(err)
 	}
-	err = e.VerifyMessage(rand.Reader, *publicKey, *message)
+	err = e.VerifyMessage(rand.Reader, *publicKey, *signedMessage)
 	if err != nil {
 		t.Error(err)
 	}
@@ -71,12 +89,18 @@ func BenchmarkVerifyMessage(b *testing.B) {
 	if err != nil {
 		b.Error(err)
 	}
-	message, err := e.SignMessage(rand.Reader, *privateKey, Message{ID: 1, Message: []byte("test")})
+	message := MessageEncrypted{
+		ID:      1,
+		Nonce:   []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101},
+		Header:  []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101},
+		Message: []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101},
+	}
+	signedMessage, err := e.SignMessage(rand.Reader, *privateKey, message)
 	if err != nil {
 		b.Error(err)
 	}
 	for i := 0; i < b.N; i++ {
-		err = e.VerifyMessage(rand.Reader, *publicKey, *message)
+		err = e.VerifyMessage(rand.Reader, *publicKey, *signedMessage)
 		if err != nil {
 			b.Error(err)
 		}
