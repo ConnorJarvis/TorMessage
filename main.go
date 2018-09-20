@@ -81,7 +81,7 @@ type AccountInfo struct {
 	SendingMessageKeys              []MessageKey
 	SendingMessageKeyInitializers   []MessageKeyInitializers
 	ReceivingMessageKeys            []MessageKey
-	REceivingMessageKeyInitializers []MessageKeyInitializers
+	ReceivingMessageKeyInitializers []MessageKeyInitializers
 	SendingMessageIndex             int
 	RecievingMessageIndex           int
 	PartnerPublicKey                rsa.PublicKey
