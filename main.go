@@ -26,6 +26,8 @@ type AES interface {
 	GenerateAESNonce(io.Reader) ([]byte, error)
 	EncryptHeader(Header, []byte, []byte) ([]byte, error)
 	DecryptHeader([]byte, []byte, []byte) (*Header, error)
+	EncryptMessage(interface{}, []byte, []byte) ([]byte, error)
+	DecryptMessage([]byte, []byte, []byte, int) (interface{}, error)
 }
 
 type MessageEncrypted struct {
@@ -63,7 +65,7 @@ type NegotiateKeysMessage struct {
 }
 
 type TextMessage struct {
-	Message string
+	Body string
 }
 
 type MessageKeyInitializers struct {

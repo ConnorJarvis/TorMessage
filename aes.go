@@ -102,3 +102,54 @@ func (e *aesTools) DecryptHeader(data []byte, key []byte, nonce []byte) (*Header
 
 	return &header, nil
 }
+
+func (e *aesTools) EncryptMessage(message interface{}, key []byte, nonce []byte) ([]byte, error) {
+	bytes := bytes.Buffer{}
+	encoder := gob.NewEncoder(&bytes)
+	err := encoder.Encode(message)
+	if err != nil {
+		return nil, err
+	}
+	ciphertext, err := e.Encrypt(bytes.Bytes(), key, nonce)
+	if err != nil {
+		return nil, err
+	}
+	return ciphertext, nil
+
+}
+
+func (e *aesTools) DecryptMessage(data []byte, key []byte, nonce []byte, messageType int) (interface{}, error) {
+
+	plaintext, err := e.Decrypt(data, key, nonce)
+	if err != nil {
+		return nil, err
+	}
+	initalBytes := bytes.Buffer{}
+	initalBytes.Write([]byte(plaintext))
+	decoder := gob.NewDecoder(&initalBytes)
+
+	if messageType == 1 {
+		message := InitialMessage{}
+		err = decoder.Decode(&message)
+		if err != nil {
+			return nil, err
+		}
+		return &message, nil
+	} else if messageType == 2 {
+		message := NegotiateKeysMessage{}
+		err = decoder.Decode(&message)
+		if err != nil {
+			return nil, err
+		}
+		return &message, nil
+	} else if messageType == 3 {
+		message := TextMessage{}
+		err = decoder.Decode(&message)
+		if err != nil {
+			return nil, err
+		}
+		return &message, nil
+	}
+
+	return nil, nil
+}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/rand"
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -189,5 +190,21 @@ func BenchmarkDecryptHeader(b *testing.B) {
 		if !reflect.DeepEqual(*header, testHeader) {
 			b.Error("header decryption failed")
 		}
+	}
+}
+
+func TestEncryptMessage(t *testing.T) {
+	e := NewAES()
+	message := TextMessage{Body: "Test"}
+	key := []byte{125, 108, 205, 217, 117, 220, 43, 125, 8, 231, 236, 166, 66, 244, 203, 229, 48, 16, 205, 91, 247, 53, 67, 122, 104, 4, 248, 136, 99, 106, 245, 168}
+	nonce := []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101}
+	cipherText, err := e.EncryptMessage(message, key, nonce)
+	fmt.Println(cipherText)
+	if err != nil {
+		t.Error(err)
+	}
+	expectedCipherText := []byte{181, 87, 75, 94, 222, 79, 92, 35, 244, 60, 195, 198, 149, 20, 156, 189, 36, 116, 103, 125, 4, 187, 57, 241, 3, 253, 242, 80, 146, 60, 58, 217, 133, 220, 91, 88, 201, 13, 112, 47, 204, 133, 85, 62, 40, 228, 139, 255, 210, 120, 178, 74, 215, 171, 117, 184, 231, 135, 206, 75, 91}
+	if !reflect.DeepEqual(cipherText, expectedCipherText) {
+		t.Error("message encryption failed")
 	}
 }
