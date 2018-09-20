@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"crypto/rand"
-	"encoding/gob"
 	"reflect"
 	"testing"
 )
@@ -117,17 +115,12 @@ func TestEncryptHeader(t *testing.T) {
 	}
 	key := []byte{125, 108, 205, 217, 117, 220, 43, 125, 8, 231, 236, 166, 66, 244, 203, 229, 48, 16, 205, 91, 247, 53, 67, 122, 104, 4, 248, 136, 99, 106, 245, 168}
 	nonce := []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101}
-	bytes := bytes.Buffer{}
-	encoder := gob.NewEncoder(&bytes)
-	err := encoder.Encode(header)
-	if err != nil {
-		t.Error(err)
-	}
-	cipherText, err := e.Encrypt(bytes.Bytes(), key, nonce)
+	cipherText, err := e.EncryptHeader(*header, key, nonce)
 	if err != nil {
 		t.Error(err)
 	}
 	expectedCipherText := []byte{211, 87, 75, 94, 222, 79, 81, 63, 244, 37, 211, 238, 130, 102, 16, 94, 67, 16, 101, 131, 136, 246, 93, 131, 113, 152, 215, 90, 160, 32, 73, 166, 236, 179, 53, 80, 50, 143, 112, 32, 213, 133, 85, 57, 73, 233, 54, 91, 230, 5, 84, 242, 95, 73, 38, 170, 12, 212, 112, 155, 153, 87, 14, 38, 9, 78, 183, 179, 50, 76, 145, 69, 52, 208, 125, 2, 217, 68, 127, 206, 27, 22, 0, 27, 206, 39, 152, 178, 37, 78, 164, 123, 166, 55, 197, 49, 176, 142, 128, 85, 189, 220, 243, 181, 195, 244}
+
 	if !reflect.DeepEqual(cipherText, expectedCipherText) {
 		t.Error("header encryption failed")
 	}
@@ -142,18 +135,13 @@ func BenchmarkEncryptHeader(b *testing.B) {
 	}
 	key := []byte{125, 108, 205, 217, 117, 220, 43, 125, 8, 231, 236, 166, 66, 244, 203, 229, 48, 16, 205, 91, 247, 53, 67, 122, 104, 4, 248, 136, 99, 106, 245, 168}
 	nonce := []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101}
+	expectedCipherText := []byte{211, 87, 75, 94, 222, 79, 81, 63, 244, 37, 211, 238, 130, 102, 16, 94, 67, 16, 101, 131, 136, 246, 93, 131, 113, 152, 215, 90, 160, 32, 73, 166, 236, 179, 53, 80, 50, 143, 112, 32, 213, 133, 85, 57, 73, 233, 54, 91, 230, 5, 84, 242, 95, 73, 38, 170, 12, 212, 112, 155, 153, 87, 14, 38, 9, 78, 183, 179, 50, 76, 145, 69, 52, 208, 125, 2, 217, 68, 127, 206, 27, 22, 0, 27, 206, 39, 152, 178, 37, 78, 164, 123, 166, 55, 197, 49, 176, 142, 128, 85, 189, 220, 243, 181, 195, 244}
 	for i := 0; i < b.N; i++ {
-		bytes := bytes.Buffer{}
-		encoder := gob.NewEncoder(&bytes)
-		err := encoder.Encode(header)
+		cipherText, err := e.EncryptHeader(*header, key, nonce)
 		if err != nil {
 			b.Error(err)
 		}
-		cipherText, err := e.Encrypt(bytes.Bytes(), key, nonce)
-		if err != nil {
-			b.Error(err)
-		}
-		expectedCipherText := []byte{211, 87, 75, 94, 222, 79, 81, 63, 244, 37, 211, 238, 130, 102, 16, 94, 67, 16, 101, 131, 136, 246, 93, 131, 113, 152, 215, 90, 160, 32, 73, 166, 236, 179, 53, 80, 50, 143, 112, 32, 213, 133, 85, 57, 73, 233, 54, 91, 230, 5, 84, 242, 95, 73, 38, 170, 12, 212, 112, 155, 153, 87, 14, 38, 9, 78, 183, 179, 50, 76, 145, 69, 52, 208, 125, 2, 217, 68, 127, 206, 27, 22, 0, 27, 206, 39, 152, 178, 37, 78, 164, 123, 166, 55, 197, 49, 176, 142, 128, 85, 189, 220, 243, 181, 195, 244}
+
 		if !reflect.DeepEqual(cipherText, expectedCipherText) {
 			b.Error("header encryption failed")
 		}
@@ -171,22 +159,12 @@ func TestDecryptHeader(t *testing.T) {
 	nonce := []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101}
 	cipherText := []byte{211, 87, 75, 94, 222, 79, 81, 63, 244, 37, 211, 238, 130, 102, 16, 94, 67, 16, 101, 131, 136, 246, 93, 131, 113, 152, 215, 90, 160, 32, 73, 166, 236, 179, 53, 80, 50, 143, 112, 32, 213, 133, 85, 57, 73, 233, 54, 91, 230, 5, 84, 242, 95, 73, 38, 170, 12, 212, 112, 155, 153, 87, 14, 38, 9, 78, 183, 179, 50, 76, 145, 69, 52, 208, 125, 2, 217, 68, 127, 206, 27, 22, 0, 27, 206, 39, 152, 178, 37, 78, 164, 123, 166, 55, 197, 49, 176, 142, 128, 85, 189, 220, 243, 181, 195, 244}
 
-	plaintext, err := e.Decrypt(cipherText, key, nonce)
+	header, err := e.DecryptHeader(cipherText, key, nonce)
+
 	if err != nil {
 		t.Error(err)
 	}
-
-	header := Header{}
-	initalBytes := bytes.Buffer{}
-	initalBytes.Write([]byte(plaintext))
-
-	decoder := gob.NewDecoder(&initalBytes)
-	err = decoder.Decode(&header)
-	if err != nil {
-		t.Error(err)
-	}
-
-	if !reflect.DeepEqual(header, testHeader) {
+	if !reflect.DeepEqual(*header, testHeader) {
 		t.Error("header decryption failed")
 	}
 }
@@ -203,22 +181,12 @@ func BenchmarkDecryptHeader(b *testing.B) {
 	cipherText := []byte{211, 87, 75, 94, 222, 79, 81, 63, 244, 37, 211, 238, 130, 102, 16, 94, 67, 16, 101, 131, 136, 246, 93, 131, 113, 152, 215, 90, 160, 32, 73, 166, 236, 179, 53, 80, 50, 143, 112, 32, 213, 133, 85, 57, 73, 233, 54, 91, 230, 5, 84, 242, 95, 73, 38, 170, 12, 212, 112, 155, 153, 87, 14, 38, 9, 78, 183, 179, 50, 76, 145, 69, 52, 208, 125, 2, 217, 68, 127, 206, 27, 22, 0, 27, 206, 39, 152, 178, 37, 78, 164, 123, 166, 55, 197, 49, 176, 142, 128, 85, 189, 220, 243, 181, 195, 244}
 
 	for i := 0; i < b.N; i++ {
-		plaintext, err := e.Decrypt(cipherText, key, nonce)
+		header, err := e.DecryptHeader(cipherText, key, nonce)
+
 		if err != nil {
 			b.Error(err)
 		}
-
-		header := Header{}
-		initalBytes := bytes.Buffer{}
-		initalBytes.Write([]byte(plaintext))
-
-		decoder := gob.NewDecoder(&initalBytes)
-		err = decoder.Decode(&header)
-		if err != nil {
-			b.Error(err)
-		}
-
-		if !reflect.DeepEqual(header, testHeader) {
+		if !reflect.DeepEqual(*header, testHeader) {
 			b.Error("header decryption failed")
 		}
 	}
