@@ -103,7 +103,7 @@ func (e *aesTools) DecryptHeader(data []byte, key []byte, nonce []byte) (*Header
 	return &header, nil
 }
 
-func (e *aesTools) EncryptMessage(message interface{}, key []byte, nonce []byte) ([]byte, error) {
+func (e *aesTools) EncryptMessageBody(message interface{}, key []byte, nonce []byte) ([]byte, error) {
 	bytes := bytes.Buffer{}
 	encoder := gob.NewEncoder(&bytes)
 	err := encoder.Encode(message)
@@ -118,7 +118,7 @@ func (e *aesTools) EncryptMessage(message interface{}, key []byte, nonce []byte)
 
 }
 
-func (e *aesTools) DecryptMessage(data []byte, key []byte, nonce []byte, messageType int) (interface{}, error) {
+func (e *aesTools) DecryptMessageBody(data []byte, key []byte, nonce []byte, messageType int) (interface{}, error) {
 
 	plaintext, err := e.Decrypt(data, key, nonce)
 	if err != nil {

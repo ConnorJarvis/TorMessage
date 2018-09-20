@@ -193,12 +193,12 @@ func BenchmarkDecryptHeader(b *testing.B) {
 	}
 }
 
-func TestEncryptMessage(t *testing.T) {
+func TestEncryptMessageBody(t *testing.T) {
 	e := NewAES()
 	message := &TextMessage{Body: "Test"}
 	key := []byte{125, 108, 205, 217, 117, 220, 43, 125, 8, 231, 236, 166, 66, 244, 203, 229, 48, 16, 205, 91, 247, 53, 67, 122, 104, 4, 248, 136, 99, 106, 245, 168}
 	nonce := []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101}
-	cipherText, err := e.EncryptMessage(message, key, nonce)
+	cipherText, err := e.EncryptMessageBody(message, key, nonce)
 	if err != nil {
 		t.Error(err)
 	}
@@ -210,14 +210,14 @@ func TestEncryptMessage(t *testing.T) {
 
 }
 
-func BenchmarkEncryptMessage(b *testing.B) {
+func BenchmarkEncryptMessageBody(b *testing.B) {
 	e := NewAES()
 	message := &TextMessage{Body: "Test"}
 	key := []byte{125, 108, 205, 217, 117, 220, 43, 125, 8, 231, 236, 166, 66, 244, 203, 229, 48, 16, 205, 91, 247, 53, 67, 122, 104, 4, 248, 136, 99, 106, 245, 168}
 	nonce := []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101}
 	expectedCipherText := []byte{181, 87, 73, 94, 222, 79, 92, 35, 244, 60, 195, 198, 149, 20, 156, 189, 36, 116, 103, 125, 2, 187, 57, 241, 3, 253, 242, 80, 146, 60, 58, 217, 133, 220, 91, 88, 201, 11, 112, 47, 204, 133, 85, 62, 40, 51, 211, 176, 45, 166, 96, 136, 188, 175, 160, 252, 226, 184, 3, 56, 98}
 	for i := 0; i < b.N; i++ {
-		cipherText, err := e.EncryptMessage(message, key, nonce)
+		cipherText, err := e.EncryptMessageBody(message, key, nonce)
 
 		if err != nil {
 			b.Error(err)
@@ -230,13 +230,13 @@ func BenchmarkEncryptMessage(b *testing.B) {
 	}
 }
 
-func TestDecryptMessage(t *testing.T) {
+func TestDecryptMessageBody(t *testing.T) {
 	e := NewAES()
 	message := &TextMessage{Body: "Test"}
 	key := []byte{125, 108, 205, 217, 117, 220, 43, 125, 8, 231, 236, 166, 66, 244, 203, 229, 48, 16, 205, 91, 247, 53, 67, 122, 104, 4, 248, 136, 99, 106, 245, 168}
 	nonce := []byte{231, 105, 16, 98, 199, 200, 124, 56, 123, 202, 182, 101}
 	cipherText := []byte{181, 87, 73, 94, 222, 79, 92, 35, 244, 60, 195, 198, 149, 20, 156, 189, 36, 116, 103, 125, 2, 187, 57, 241, 3, 253, 242, 80, 146, 60, 58, 217, 133, 220, 91, 88, 201, 11, 112, 47, 204, 133, 85, 62, 40, 51, 211, 176, 45, 166, 96, 136, 188, 175, 160, 252, 226, 184, 3, 56, 98}
-	plaintext, err := e.DecryptMessage(cipherText, key, nonce, 3)
+	plaintext, err := e.DecryptMessageBody(cipherText, key, nonce, 3)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -246,7 +246,7 @@ func TestDecryptMessage(t *testing.T) {
 	}
 }
 
-func BenchmarkDecryptMessage(b *testing.B) {
+func BenchmarkDecryptMessageBody(b *testing.B) {
 	e := NewAES()
 	message := &TextMessage{Body: "Test"}
 	key := []byte{125, 108, 205, 217, 117, 220, 43, 125, 8, 231, 236, 166, 66, 244, 203, 229, 48, 16, 205, 91, 247, 53, 67, 122, 104, 4, 248, 136, 99, 106, 245, 168}
@@ -254,7 +254,7 @@ func BenchmarkDecryptMessage(b *testing.B) {
 	cipherText := []byte{181, 87, 73, 94, 222, 79, 92, 35, 244, 60, 195, 198, 149, 20, 156, 189, 36, 116, 103, 125, 2, 187, 57, 241, 3, 253, 242, 80, 146, 60, 58, 217, 133, 220, 91, 88, 201, 11, 112, 47, 204, 133, 85, 62, 40, 51, 211, 176, 45, 166, 96, 136, 188, 175, 160, 252, 226, 184, 3, 56, 98}
 
 	for i := 0; i < b.N; i++ {
-		plaintext, err := e.DecryptMessage(cipherText, key, nonce, 3)
+		plaintext, err := e.DecryptMessageBody(cipherText, key, nonce, 3)
 
 		if err != nil {
 			b.Error(err)

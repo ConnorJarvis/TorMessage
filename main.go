@@ -16,8 +16,6 @@ type ECDH interface {
 
 type RSA interface {
 	GenerateRSAKey(io.Reader) (*rsa.PrivateKey, *rsa.PublicKey, error)
-	SignMessage(io.Reader, rsa.PrivateKey, MessageEncrypted) (*MessageEncrypted, error)
-	VerifyMessage(io.Reader, rsa.PublicKey, MessageEncrypted) error
 }
 type AES interface {
 	Encrypt([]byte, []byte, []byte) ([]byte, error)
@@ -26,8 +24,18 @@ type AES interface {
 	GenerateAESNonce(io.Reader) ([]byte, error)
 	EncryptHeader(Header, []byte, []byte) ([]byte, error)
 	DecryptHeader([]byte, []byte, []byte) (*Header, error)
-	EncryptMessage(interface{}, []byte, []byte) ([]byte, error)
-	DecryptMessage([]byte, []byte, []byte, int) (interface{}, error)
+	EncryptMessageBody(interface{}, []byte, []byte) ([]byte, error)
+	DecryptMessageBody([]byte, []byte, []byte, int) (interface{}, error)
+}
+
+type Messages interface {
+	EncryptMessage(MessageUnencrypted, MessageKey, rsa.PrivateKey) (*MessageEncrypted, error)
+	DecryptMessage(MessageEncrypted, MessageKey) (*MessageUnencrypted, error)
+	SignMessage(io.Reader, rsa.PrivateKey, MessageEncrypted) (*MessageEncrypted, error)
+	VerifyMessage(io.Reader, rsa.PublicKey, MessageEncrypted) error
+}
+
+type Conversation interface {
 }
 
 type MessageEncrypted struct {
@@ -35,16 +43,17 @@ type MessageEncrypted struct {
 	HeaderNonce      []byte
 	MessageNonce     []byte
 	Header           []byte
-	Message          []byte
+	Body             []byte
 	HeaderSignature  []byte
 	MessageSignature []byte
 }
 
 type MessageUnencrypted struct {
 	ID               int
-	Nonce            []byte
+	HeaderNonce      []byte
+	MessageNonce     []byte
 	Header           Header
-	Message          interface{}
+	Body             interface{}
 	HeaderSignature  []byte
 	MessageSignature []byte
 }
