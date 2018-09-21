@@ -34,16 +34,16 @@ func (e *messageTools) EncryptMessage(unEncryptedMessage MessageUnencrypted, mes
 	messageEncrypted.Header = encryptedHeader
 	messageEncrypted.HeaderNonce = headerNonce
 
-	messageNonce, err := AESTools.GenerateAESNonce(rand.Reader)
+	BodyNonce, err := AESTools.GenerateAESNonce(rand.Reader)
 	if err != nil {
 		return nil, err
 	}
-	encryptedMessage, err := AESTools.EncryptMessageBody(unEncryptedMessage.Body, aesKey, messageNonce)
+	encryptedMessage, err := AESTools.EncryptMessageBody(unEncryptedMessage.Body, aesKey, BodyNonce)
 	if err != nil {
 		return nil, err
 	}
 	messageEncrypted.Body = encryptedMessage
-	messageEncrypted.MessageNonce = messageNonce
+	messageEncrypted.BodyNonce = BodyNonce
 
 	signedMessageEncrypted, err := e.SignMessage(rand.Reader, privateKey, messageEncrypted)
 	if err != nil {
@@ -65,13 +65,13 @@ func (e *messageTools) DecryptMessage(encryptedMessage MessageEncrypted, message
 	decryptedMessage.HeaderNonce = encryptedMessage.HeaderNonce
 	decryptedMessage.HeaderSignature = encryptedMessage.HeaderSignature
 
-	decryptedMessageBody, err := AESTools.DecryptMessageBody(encryptedMessage.Body, messageKey.Key, encryptedMessage.MessageNonce, decryptedMessageHeader.MessageType)
+	decryptedMessageBody, err := AESTools.DecryptMessageBody(encryptedMessage.Body, messageKey.Key, encryptedMessage.BodyNonce, decryptedMessageHeader.MessageType)
 	if err != nil {
 		return nil, err
 	}
 	decryptedMessage.Body = decryptedMessageBody
-	decryptedMessage.MessageNonce = encryptedMessage.MessageNonce
-	decryptedMessage.MessageSignature = encryptedMessage.MessageSignature
+	decryptedMessage.BodyNonce = encryptedMessage.BodyNonce
+	decryptedMessage.BodySignature = encryptedMessage.BodySignature
 
 	return &decryptedMessage, nil
 }
@@ -84,7 +84,7 @@ func (e *messageTools) SignMessage(rand io.Reader, privateKey rsa.PrivateKey, me
 	headerHasher.Write(message.Header)
 	headerHash := headerHasher.Sum(nil)
 
-	messageSignature, err := rsa.SignPKCS1v15(rand, &privateKey, crypto.SHA256, messageHash)
+	bodySignature, err := rsa.SignPKCS1v15(rand, &privateKey, crypto.SHA256, messageHash)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func (e *messageTools) SignMessage(rand io.Reader, privateKey rsa.PrivateKey, me
 		return nil, err
 	}
 
-	message.MessageSignature = messageSignature
+	message.BodySignature = bodySignature
 	message.HeaderSignature = headerSignature
 	return &message, nil
 }
@@ -113,7 +113,7 @@ func (e *messageTools) VerifyMessage(rand io.Reader, publicKey rsa.PublicKey, me
 	messageHasher.Write(message.Body)
 	messageHash := messageHasher.Sum(nil)
 
-	err = rsa.VerifyPKCS1v15(&publicKey, crypto.SHA256, messageHash, message.MessageSignature)
+	err = rsa.VerifyPKCS1v15(&publicKey, crypto.SHA256, messageHash, message.BodySignature)
 	if err != nil {
 		return err
 	}

@@ -2,8 +2,10 @@ package main
 
 import (
 	"crypto"
+	"crypto/rand"
 	"crypto/rsa"
 	"encoding/gob"
+	"fmt"
 	"io"
 )
 
@@ -36,26 +38,35 @@ type Messages interface {
 }
 
 type Conversation interface {
+	CreateKeyInitializers(int) ([]MessageKeyInitializer, error)
+	RecieveKeyInitializers([]MessageKeyInitializer) ([]MessageKeyInitializer, error)
+	State() ConversationInfo
+	RecieveMessage(MessageEncrypted) error
+	GetReceiveMessageKey(int) (*MessageKey, error)
+	RemoveReceiveMessageKey(int) error
+	HandleInitialMessage(InitialMessage) error
+	PrepareMessage(MessageUnencrypted) error
+	PrepareNegotiateKeysMessage() error
 }
 
 type MessageEncrypted struct {
-	ID               int
-	HeaderNonce      []byte
-	MessageNonce     []byte
-	Header           []byte
-	Body             []byte
-	HeaderSignature  []byte
-	MessageSignature []byte
+	ID              int
+	HeaderNonce     []byte
+	BodyNonce       []byte
+	Header          []byte
+	Body            []byte
+	HeaderSignature []byte
+	BodySignature   []byte
 }
 
 type MessageUnencrypted struct {
-	ID               int
-	HeaderNonce      []byte
-	MessageNonce     []byte
-	Header           Header
-	Body             interface{}
-	HeaderSignature  []byte
-	MessageSignature []byte
+	ID              int
+	HeaderNonce     []byte
+	BodyNonce       []byte
+	Header          Header
+	Body            interface{}
+	HeaderSignature []byte
+	BodySignature   []byte
 }
 
 type Header struct {
@@ -66,21 +77,23 @@ type Header struct {
 
 type InitialMessage struct {
 	PublicKey    rsa.PublicKey
-	DHPublicKeys []MessageKeyInitializers
+	DHPublicKeys []MessageKeyInitializer
 }
 
 type NegotiateKeysMessage struct {
-	DHPublicKeys []MessageKeyInitializers
+	HostPublicKeys    []MessageKeyInitializer
+	PartnerPublicKeys []MessageKeyInitializer
 }
 
 type TextMessage struct {
 	Body string
 }
 
-type MessageKeyInitializers struct {
+type MessageKeyInitializer struct {
 	ID         int
-	PublicKey  rsa.PublicKey
-	PrivateKey rsa.PrivateKey
+	PublicKey  crypto.PublicKey
+	PrivateKey crypto.PrivateKey
+	Key        []byte
 }
 
 type MessageKey struct {
@@ -93,13 +106,15 @@ type ConversationInfo struct {
 	PrivateKey                      rsa.PrivateKey
 	PublicKey                       rsa.PublicKey
 	SendingMessageKeys              []MessageKey
-	SendingMessageKeyInitializers   []MessageKeyInitializers
+	SendingMessageKeyInitializers   []MessageKeyInitializer
 	ReceivingMessageKeys            []MessageKey
-	ReceivingMessageKeyInitializers []MessageKeyInitializers
+	ReceivingMessageKeyInitializers []MessageKeyInitializer
 	SendingMessageIndex             int
 	RecievingMessageIndex           int
-	PartnerPublicKey                rsa.PublicKey
+	PartnerPublicKey                *rsa.PublicKey
 	PartnerHostname                 string
+	SendQueue                       chan MessageEncrypted
+	RecieveQueue                    chan MessageEncrypted
 }
 
 func init() {
@@ -108,10 +123,70 @@ func init() {
 	gob.Register(InitialMessage{})
 	gob.Register(NegotiateKeysMessage{})
 	gob.Register(TextMessage{})
+	gob.Register([32]byte{})
 }
 
-var conversation ConversationInfo
-
 func main() {
+	RSATools := NewRSA()
+	AESTools := NewAES()
+	privateKey, publicKey, err := RSATools.GenerateRSAKey(rand.Reader)
+	if err != nil {
+		fmt.Println(err)
+	}
+	var messageKeys []MessageKey
 
+	for i := 0; i < 3; i++ {
+		aesKey, err := AESTools.GenerateAESKey(rand.Reader)
+		if err != nil {
+			fmt.Println(err)
+		}
+		messageKeys = append(messageKeys, MessageKey{ID: i, Key: aesKey})
+
+	}
+
+	hostConversationInfo := &ConversationInfo{
+		Hostname:              "127.0.0.1:9000",
+		PrivateKey:            *privateKey,
+		PublicKey:             *publicKey,
+		SendingMessageKeys:    []MessageKey{MessageKey{ID: 0, Key: messageKeys[2].Key}},
+		ReceivingMessageKeys:  messageKeys[:2],
+		SendingMessageIndex:   0,
+		RecievingMessageIndex: 0,
+		SendQueue:             make(chan MessageEncrypted),
+		RecieveQueue:          make(chan MessageEncrypted),
+	}
+	hostConversation := NewConversation(*hostConversationInfo)
+	go SendQueue(hostConversation.State().SendQueue)
+	err = hostConversation.PrepareNegotiateKeysMessage()
+	if err != nil {
+		fmt.Println(err)
+	}
+	for {
+
+	}
+	// privateKey2, publicKey2, err := RSATools.GenerateRSAKey(rand.Reader)
+	// if err != nil {
+	// 	fmt.Println(err)
+	// }
+	// partnerConversationInfo := &ConversationInfo{
+	// 	Hostname:              "127.0.0.1:9001",
+	// 	PrivateKey:            *privateKey2,
+	// 	PublicKey:             *publicKey2,
+	// 	SendingMessageKeys:    messageKeys[:2],
+	// 	ReceivingMessageKeys:  []MessageKey{MessageKey{ID: 0, Key: messageKeys[2].Key}},
+	// 	SendingMessageIndex:   0,
+	// 	RecievingMessageIndex: 0,
+	// 	PartnerPublicKey:      publicKey,
+	// 	PartnerHostname:       "127.0.0.1:9000",
+	// 	SendQueue:             *new(chan MessageEncrypted),
+	// 	RecieveQueue:          *new(chan MessageEncrypted),
+	// }
+	// partnerConversation := NewConversation(*partnerConversationInfo)
+}
+
+func SendQueue(send chan MessageEncrypted) {
+	for {
+		message := <-send
+		fmt.Println(message)
+	}
 }
