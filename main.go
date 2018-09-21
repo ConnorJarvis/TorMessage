@@ -39,14 +39,17 @@ type Messages interface {
 
 type Conversation interface {
 	CreateKeyInitializers(int) ([]MessageKeyInitializer, error)
-	RecieveKeyInitializers([]MessageKeyInitializer) ([]MessageKeyInitializer, error)
+	ComputeKeyMessages([]MessageKeyInitializer, []MessageKeyInitializer) ([]MessageKey, error)
 	State() ConversationInfo
-	RecieveMessage(MessageEncrypted) error
+	ReceiveMessage(MessageEncrypted) error
+	GetSendMessageKey(int) (*MessageKey, error)
 	GetReceiveMessageKey(int) (*MessageKey, error)
+	GetReceiveMessageKeyInitializer(int) (*MessageKeyInitializer, error)
 	RemoveReceiveMessageKey(int) error
-	HandleInitialMessage(InitialMessage) error
+	RemoveSendMessageKey(int) error
+	HandleNegotiateKeysMessage(NegotiateKeysMessage) error
 	PrepareMessage(MessageUnencrypted) error
-	PrepareNegotiateKeysMessage() error
+	PrepareNegotiateKeysMessage(*[]MessageKeyInitializer, *[]MessageKeyInitializer) error
 }
 
 type MessageEncrypted struct {
@@ -76,13 +79,13 @@ type Header struct {
 }
 
 type InitialMessage struct {
-	PublicKey    rsa.PublicKey
-	DHPublicKeys []MessageKeyInitializer
+	PublicKey         rsa.PublicKey
+	PartnerPublicKeys []MessageKeyInitializer
 }
 
 type NegotiateKeysMessage struct {
-	HostPublicKeys    []MessageKeyInitializer
-	PartnerPublicKeys []MessageKeyInitializer
+	HostPublicKeys    *[]MessageKeyInitializer
+	PartnerPublicKeys *[]MessageKeyInitializer
 }
 
 type TextMessage struct {
@@ -143,50 +146,76 @@ func main() {
 		messageKeys = append(messageKeys, MessageKey{ID: i, Key: aesKey})
 
 	}
-
 	hostConversationInfo := &ConversationInfo{
 		Hostname:              "127.0.0.1:9000",
 		PrivateKey:            *privateKey,
 		PublicKey:             *publicKey,
 		SendingMessageKeys:    []MessageKey{MessageKey{ID: 0, Key: messageKeys[2].Key}},
-		ReceivingMessageKeys:  messageKeys[:2],
+		ReceivingMessageKeys:  messageKeys[:1],
 		SendingMessageIndex:   0,
 		RecievingMessageIndex: 0,
 		SendQueue:             make(chan MessageEncrypted),
 		RecieveQueue:          make(chan MessageEncrypted),
 	}
 	hostConversation := NewConversation(*hostConversationInfo)
-	go SendQueue(hostConversation.State().SendQueue)
-	err = hostConversation.PrepareNegotiateKeysMessage()
+
+	privateKey2, publicKey2, err := RSATools.GenerateRSAKey(rand.Reader)
 	if err != nil {
 		fmt.Println(err)
 	}
+	partnerConversationInfo := &ConversationInfo{
+		Hostname:              "127.0.0.1:9001",
+		PrivateKey:            *privateKey2,
+		PublicKey:             *publicKey2,
+		SendingMessageKeys:    messageKeys[:1],
+		ReceivingMessageKeys:  []MessageKey{MessageKey{ID: 0, Key: messageKeys[2].Key}},
+		SendingMessageIndex:   0,
+		RecievingMessageIndex: 0,
+		PartnerPublicKey:      publicKey,
+		PartnerHostname:       "127.0.0.1:9000",
+		SendQueue:             make(chan MessageEncrypted),
+		RecieveQueue:          make(chan MessageEncrypted),
+	}
+	partnerConversation := NewConversation(*partnerConversationInfo)
+
+	partnerPublicKeys, err := partnerConversation.CreateKeyInitializers(5)
+	if err != nil {
+		fmt.Println(err)
+	}
+	initialMessage := InitialMessage{
+		PublicKey:         partnerConversation.State().PublicKey,
+		PartnerPublicKeys: partnerPublicKeys,
+	}
+	header := Header{
+		MessageType:    1,
+		MessageVersion: 1,
+		Hostname:       partnerConversation.State().Hostname,
+	}
+	unEncryptedMessage := MessageUnencrypted{
+		ID:     0,
+		Header: header,
+		Body:   initialMessage,
+	}
+	go LinkConvos(partnerConversation.State().SendQueue, hostConversation)
+	go LinkConvos(hostConversation.State().SendQueue, partnerConversation)
+
+	err = partnerConversation.PrepareMessage(unEncryptedMessage)
+	if err != nil {
+		fmt.Println(err)
+	}
+
 	for {
 
 	}
-	// privateKey2, publicKey2, err := RSATools.GenerateRSAKey(rand.Reader)
-	// if err != nil {
-	// 	fmt.Println(err)
-	// }
-	// partnerConversationInfo := &ConversationInfo{
-	// 	Hostname:              "127.0.0.1:9001",
-	// 	PrivateKey:            *privateKey2,
-	// 	PublicKey:             *publicKey2,
-	// 	SendingMessageKeys:    messageKeys[:2],
-	// 	ReceivingMessageKeys:  []MessageKey{MessageKey{ID: 0, Key: messageKeys[2].Key}},
-	// 	SendingMessageIndex:   0,
-	// 	RecievingMessageIndex: 0,
-	// 	PartnerPublicKey:      publicKey,
-	// 	PartnerHostname:       "127.0.0.1:9000",
-	// 	SendQueue:             *new(chan MessageEncrypted),
-	// 	RecieveQueue:          *new(chan MessageEncrypted),
-	// }
-	// partnerConversation := NewConversation(*partnerConversationInfo)
 }
 
-func SendQueue(send chan MessageEncrypted) {
+func LinkConvos(queue1 chan MessageEncrypted, conversation Conversation) {
 	for {
-		message := <-send
-		fmt.Println(message)
+		message := <-queue1
+
+		err := conversation.ReceiveMessage(message)
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
 }
