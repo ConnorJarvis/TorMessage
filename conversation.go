@@ -12,6 +12,7 @@ type conversationTools struct {
 }
 
 func NewConversation(info ConversationInfo) Conversation {
+
 	return &conversationTools{ConversationState: info}
 }
 
@@ -19,8 +20,11 @@ func (e *conversationTools) ComputeKeyMessages(publicKeys []MessageKeyInitialize
 	var computedMessageKeys []MessageKey
 	Curve25519ECDH := NewCurve25519ECDH()
 	for index, publicKeyInitializer := range publicKeys {
-
-		sharedSecret, err := Curve25519ECDH.GenerateSharedSecret(privateKeys[index].PrivateKey, &publicKeys[index].PublicKey)
+		publicKey, isKey := Curve25519ECDH.Unmarshal(publicKeys[index].PublicKey)
+		if isKey != true {
+			return nil, errors.New("not a public key")
+		}
+		sharedSecret, err := Curve25519ECDH.GenerateSharedSecret(privateKeys[index].PrivateKey, publicKey)
 		if err != nil {
 			return nil, err
 		}
@@ -38,7 +42,6 @@ func (e *conversationTools) State() ConversationInfo {
 }
 
 func (e *conversationTools) ReceiveMessage(encryptedMessage MessageEncrypted) error {
-	fmt.Println("test")
 	AESTools := NewAES()
 	MessageTools := NewMessages()
 	if e.ConversationState.PartnerPublicKey == nil {
@@ -54,37 +57,46 @@ func (e *conversationTools) ReceiveMessage(encryptedMessage MessageEncrypted) er
 		}
 		if messageHeader.MessageType == 1 {
 			e.ConversationState.PartnerHostname = messageHeader.Hostname
-			fmt.Println(messageHeader.Hostname)
+
 			messageBody, err := AESTools.DecryptMessageBody(encryptedMessage.Body, messageKey.Key, encryptedMessage.BodyNonce, 1)
 			if err != nil {
 				return err
 			}
 			initialMessage := messageBody.(*InitialMessage)
 			e.ConversationState.PartnerPublicKey = &initialMessage.PublicKey
-
-			go e.HandleNegotiateKeyMessage(NegotiateKeysMessage{PartnerPublicKeys: &initialMessage.PartnerPublicKeys})
-			return nil
+			go e.HandleNegotiateKeyMessage(&NegotiateKeysMessage{PartnerPublicKeys: &initialMessage.PartnerPublicKeys})
 		}
 
 	} else {
+
 		err := MessageTools.VerifyMessage(rand.Reader, *e.ConversationState.PartnerPublicKey, encryptedMessage)
 		if err != nil {
 			return err
 		}
+
 		messageKey, err := e.GetReceiveMessageKey(encryptedMessage.ID)
 		if err != nil {
 			return err
 		}
+
 		messageHeader, err := AESTools.DecryptHeader(encryptedMessage.Header, messageKey.Key, encryptedMessage.HeaderNonce)
 		if err != nil {
 			return err
 		}
+
 		if messageHeader.MessageType == 2 {
 			messageBody, err := AESTools.DecryptMessageBody(encryptedMessage.Body, messageKey.Key, encryptedMessage.BodyNonce, 2)
 			if err != nil {
 				return err
 			}
-			go e.HandleNegotiateKeyMessage(messageBody.(NegotiateKeysMessage))
+
+			go e.HandleNegotiateKeyMessage(messageBody.(*NegotiateKeysMessage))
+		} else if messageHeader.MessageType == 3 {
+			messageBody, err := AESTools.DecryptMessageBody(encryptedMessage.Body, messageKey.Key, encryptedMessage.BodyNonce, 3)
+			if err != nil {
+				return err
+			}
+			go e.HandleTextMessage(messageBody.(*TextMessage))
 		}
 	}
 
@@ -92,7 +104,7 @@ func (e *conversationTools) ReceiveMessage(encryptedMessage MessageEncrypted) er
 	if err != nil {
 		return err
 	}
-	e.ConversationState.RecievingMessageIndex++
+	e.ConversationState.ReceivingMessageIndex++
 	return nil
 }
 
@@ -142,13 +154,18 @@ func (e *conversationTools) RemoveReceiveMessageKey(id int) error {
 	return errors.New("no key")
 }
 
-func (e *conversationTools) HandleNegotiateKeyMessage(negotiateKeyMessage NegotiateKeysMessage) error {
+func (e *conversationTools) HandleTextMessage(textMessage *TextMessage) error {
+	fmt.Println(textMessage.Body)
+	return nil
+}
+
+func (e *conversationTools) HandleNegotiateKeyMessage(negotiateKeyMessage *NegotiateKeysMessage) error {
 	if negotiateKeyMessage.HostPublicKeys == nil {
-		hostKeyInitializers, err := e.CreateKeyInitializers(5)
+		hostKeyInitializers, err := e.CreateReceiveKeyInitializers(5)
 		if err != nil {
 			return err
 		}
-		partnerKeyInitializers, err := e.CreateKeyInitializers(5)
+		partnerKeyInitializers, err := e.CreateSendKeyInitializers(5)
 		if err != nil {
 			return err
 		}
@@ -160,29 +177,32 @@ func (e *conversationTools) HandleNegotiateKeyMessage(negotiateKeyMessage Negoti
 			e.ConversationState.SendingMessageKeys = append(e.ConversationState.SendingMessageKeys, messageKey)
 		}
 		for _, hostKeyInitalizer := range hostKeyInitializers {
-			e.ConversationState.ReceivingMessageKeyInitializers = append(e.ConversationState.ReceivingMessageKeyInitializers, hostKeyInitalizer)
 			hostKeyInitalizer.Key = nil
+			hostKeyInitalizer.PrivateKey = nil
 		}
-
+		for _, partnerKeyInitalizer := range partnerKeyInitializers {
+			partnerKeyInitalizer.Key = nil
+			partnerKeyInitalizer.PrivateKey = nil
+		}
 		err = e.PrepareNegotiateKeysMessage(&partnerKeyInitializers, &hostKeyInitializers)
 		if err != nil {
 			return err
 		}
 	} else if negotiateKeyMessage.PartnerPublicKeys == nil {
-		var hostKeyInitializers []MessageKeyInitializer
-		for _, hostKeyInitializer := range *negotiateKeyMessage.HostPublicKeys {
-			initalizer, err := e.GetReceiveMessageKeyInitializer(hostKeyInitializer.ID)
+		var partnerKeyInitializers []MessageKeyInitializer
+		for _, partnerKeyInitializer := range *negotiateKeyMessage.HostPublicKeys {
+			initalizer, err := e.GetReceiveMessageKeyInitializer(partnerKeyInitializer.ID)
 			if err != nil {
 				return err
 			}
-			hostKeyInitializers = append(hostKeyInitializers, *initalizer)
+			partnerKeyInitializers = append(partnerKeyInitializers, *initalizer)
 		}
-		messageKeys, err := e.ComputeKeyMessages(*negotiateKeyMessage.HostPublicKeys, hostKeyInitializers)
+		messageKeys, err := e.ComputeKeyMessages(*negotiateKeyMessage.HostPublicKeys, partnerKeyInitializers)
 		if err != nil {
 			return err
 		}
 		for _, messageKey := range messageKeys {
-			e.ConversationState.SendingMessageKeys = append(e.ConversationState.ReceivingMessageKeys, messageKey)
+			e.ConversationState.ReceivingMessageKeys = append(e.ConversationState.ReceivingMessageKeys, messageKey)
 		}
 		return nil
 	} else {
@@ -194,15 +214,16 @@ func (e *conversationTools) HandleNegotiateKeyMessage(negotiateKeyMessage Negoti
 			}
 			partnerKeyInitializers = append(partnerKeyInitializers, *initalizer)
 		}
+
 		messageKeys, err := e.ComputeKeyMessages(*negotiateKeyMessage.PartnerPublicKeys, partnerKeyInitializers)
 		if err != nil {
 			return err
 		}
 		for _, messageKey := range messageKeys {
-			e.ConversationState.SendingMessageKeys = append(e.ConversationState.ReceivingMessageKeys, messageKey)
+			e.ConversationState.ReceivingMessageKeys = append(e.ConversationState.ReceivingMessageKeys, messageKey)
 		}
 
-		hostKeyInitializers, err := e.CreateKeyInitializers(5)
+		hostKeyInitializers, err := e.CreateSendKeyInitializers(5)
 		if err != nil {
 			return err
 		}
@@ -214,7 +235,10 @@ func (e *conversationTools) HandleNegotiateKeyMessage(negotiateKeyMessage Negoti
 		for _, messageKey := range messageKeys {
 			e.ConversationState.SendingMessageKeys = append(e.ConversationState.SendingMessageKeys, messageKey)
 		}
-
+		for _, hostKeyInitalizer := range hostKeyInitializers {
+			hostKeyInitalizer.Key = nil
+			hostKeyInitalizer.PrivateKey = nil
+		}
 		err = e.PrepareNegotiateKeysMessage(nil, &hostKeyInitializers)
 		if err != nil {
 			return err
@@ -224,7 +248,7 @@ func (e *conversationTools) HandleNegotiateKeyMessage(negotiateKeyMessage Negoti
 	return nil
 }
 
-func (e *conversationTools) CreateKeyInitializers(number int) ([]MessageKeyInitializer, error) {
+func (e *conversationTools) CreateSendKeyInitializers(number int) ([]MessageKeyInitializer, error) {
 
 	var keyInitializers []MessageKeyInitializer
 	Curve25519ECDH := NewCurve25519ECDH()
@@ -233,15 +257,41 @@ func (e *conversationTools) CreateKeyInitializers(number int) ([]MessageKeyIniti
 		if err != nil {
 			return nil, err
 		}
+		e.ConversationState.SendingMessageKeyInitializersIndex++
 		keyInitializer := MessageKeyInitializer{
-			ID:         e.ConversationState.SendingMessageIndex + i,
+			ID:         e.ConversationState.SendingMessageKeyInitializersIndex,
 			PrivateKey: privateKey,
-			PublicKey:  publicKey,
+			PublicKey:  Curve25519ECDH.Marshal(publicKey),
 		}
+
 		keyInitializers = append(keyInitializers, keyInitializer)
 	}
 	for _, keyInitializer := range keyInitializers {
 		e.ConversationState.SendingMessageKeyInitializers = append(e.ConversationState.SendingMessageKeyInitializers, keyInitializer)
+	}
+	return keyInitializers, nil
+}
+
+func (e *conversationTools) CreateReceiveKeyInitializers(number int) ([]MessageKeyInitializer, error) {
+
+	var keyInitializers []MessageKeyInitializer
+	Curve25519ECDH := NewCurve25519ECDH()
+	for i := 1; i <= number; i++ {
+		privateKey, publicKey, err := Curve25519ECDH.GenerateKey(rand.Reader)
+		if err != nil {
+			return nil, err
+		}
+		e.ConversationState.ReceivingMessageKeyInitializersIndex++
+		keyInitializer := MessageKeyInitializer{
+			ID:         e.ConversationState.ReceivingMessageKeyInitializersIndex,
+			PrivateKey: privateKey,
+			PublicKey:  Curve25519ECDH.Marshal(publicKey),
+		}
+
+		keyInitializers = append(keyInitializers, keyInitializer)
+	}
+	for _, keyInitializer := range keyInitializers {
+		e.ConversationState.ReceivingMessageKeyInitializers = append(e.ConversationState.ReceivingMessageKeyInitializers, keyInitializer)
 	}
 	return keyInitializers, nil
 }
@@ -265,7 +315,11 @@ func (e *conversationTools) PrepareNegotiateKeysMessage(partnerPublicKeys *[]Mes
 		Header: header,
 		Body:   &NegotiateKeysMessage,
 	}
-	err := e.PrepareMessage(unEncryptedMessage)
+	encryptedMessage, err := e.PrepareMessage(unEncryptedMessage)
+	if err != nil {
+		return err
+	}
+	err = e.SendMessage(*encryptedMessage)
 	if err != nil {
 		return err
 	}
@@ -273,22 +327,62 @@ func (e *conversationTools) PrepareNegotiateKeysMessage(partnerPublicKeys *[]Mes
 
 }
 
-func (e *conversationTools) PrepareMessage(unEncryptedMessage MessageUnencrypted) error {
+func (e *conversationTools) PrepareMessage(unEncryptedMessage MessageUnencrypted) (*MessageEncrypted, error) {
 	MessageTools := NewMessages()
 	messageKey, err := e.GetSendMessageKey(unEncryptedMessage.ID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	encryptedMessage, err := MessageTools.EncryptMessage(unEncryptedMessage, *messageKey, e.ConversationState.PrivateKey)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	err = e.RemoveSendMessageKey(unEncryptedMessage.ID)
 	if err != nil {
+		return nil, err
+	}
+
+	return encryptedMessage, nil
+}
+
+func (e *conversationTools) SendMessage(encryptedMessage MessageEncrypted) error {
+
+	e.ConversationState.SendingMessageIndex++
+	e.ConversationState.SendQueue <- encryptedMessage
+
+	return nil
+}
+
+func (e *conversationTools) StartConnection(unEncryptedMessage MessageUnencrypted) error {
+
+	body := unEncryptedMessage.Body.(InitialMessage)
+	for _, init := range body.PartnerPublicKeys {
+		e.ConversationState.ReceivingMessageKeyInitializers = append(e.ConversationState.ReceivingMessageKeyInitializers, init)
+	}
+	encryptedMessage, err := e.PrepareMessage(unEncryptedMessage)
+	if err != nil {
 		return err
 	}
-	e.ConversationState.SendingMessageIndex++
-	e.ConversationState.SendQueue <- *encryptedMessage
+	err = e.SendMessage(*encryptedMessage)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
+func (e *conversationTools) NegotiateKeys(unEncryptedMessage MessageUnencrypted) error {
+
+	body := unEncryptedMessage.Body.(NegotiateKeysMessage)
+	for _, init := range *body.PartnerPublicKeys {
+		e.ConversationState.ReceivingMessageKeyInitializers = append(e.ConversationState.ReceivingMessageKeyInitializers, init)
+	}
+	encryptedMessage, err := e.PrepareMessage(unEncryptedMessage)
+	if err != nil {
+		return err
+	}
+	err = e.SendMessage(*encryptedMessage)
+	if err != nil {
+		return err
+	}
 	return nil
 }
