@@ -1,13 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"crypto"
-	"crypto/rand"
 	"crypto/rsa"
 	"encoding/gob"
+	"flag"
 	"fmt"
 	"io"
-	"reflect"
+	"os"
 	"time"
 )
 
@@ -57,6 +58,27 @@ type Conversation interface {
 	PrepareNegotiateKeysMessage(*[]MessageKeyInitializer, *[]MessageKeyInitializer) error
 	StartConnection(MessageUnencrypted) error
 	NegotiateKeys(MessageUnencrypted) error
+	ReceiveMessageProcessor(chan MessageEncrypted)
+	StartSendService()
+}
+
+type Chat interface {
+	InitializeConversation(*string) (*string, error)
+	InitiateConnection() error
+	NegotiateNewKeys() error
+	SendTextMessage(string) error
+	State() ChatInformation
+	StartServer()
+
+	StartKeyNegotiatingService()
+}
+
+type ChatInformation struct {
+	Hostname        string
+	PartnerHostname string
+	Name            string
+	Host            bool
+	Conversation    Conversation
 }
 
 type MessageEncrypted struct {
@@ -96,6 +118,7 @@ type NegotiateKeysMessage struct {
 }
 
 type TextMessage struct {
+	Name string
 	Body string
 }
 
@@ -125,8 +148,16 @@ type ConversationInfo struct {
 	ReceivingMessageKeyInitializersIndex int
 	PartnerPublicKey                     *rsa.PublicKey
 	PartnerHostname                      string
-	SendQueue                            chan MessageEncrypted
-	RecieveQueue                         chan MessageEncrypted
+	SendQueue                            chan MessageUnencrypted
+	ReceiveQueue                         chan MessageEncrypted
+	DisplayQueue                         chan TextMessage
+}
+
+type InitializingData struct {
+	Hostname             string
+	PublicKey            rsa.PublicKey
+	SendingMessageKeys   []MessageKey
+	ReceivingMessageKeys []MessageKey
 }
 
 func init() {
@@ -135,164 +166,77 @@ func init() {
 	gob.Register(InitialMessage{})
 	gob.Register(NegotiateKeysMessage{})
 	gob.Register(TextMessage{})
+	gob.Register(InitializingData{})
 	gob.Register([32]byte{})
 }
 
 func main() {
-	RSATools := NewRSA()
-	AESTools := NewAES()
-	privateKey, publicKey, err := RSATools.GenerateRSAKey(rand.Reader)
-	if err != nil {
-		fmt.Println(err)
-	}
-	var messageKeys []MessageKey
+	host := flag.Bool("host", false, "Set if you are the host of the chat")
+	hostname := flag.String("hostname", "127.0.0.1:9000", "ip:port to listen on")
+	name := flag.String("name", "User", "Display Name")
+	extradata := flag.String("extradata", "", "If you are not the host enter the string given to you here")
 
-	for i := 0; i < 3; i++ {
-		aesKey, err := AESTools.GenerateAESKey(rand.Reader)
+	flag.Parse()
+
+	chatInfo := ChatInformation{
+		Hostname: *hostname,
+		Host:     *host,
+		Name:     *name,
+	}
+	var chat Chat
+	if *host == true {
+		chat = NewChat(chatInfo)
+		data, err := chat.InitializeConversation(nil)
 		if err != nil {
 			fmt.Println(err)
 		}
-		messageKeys = append(messageKeys, MessageKey{ID: i, Key: aesKey})
+		fmt.Println(*data)
+	} else {
+		chat = NewChat(chatInfo)
+		data, err := chat.InitializeConversation(extradata)
+		if err != nil {
+			fmt.Println(err)
+		}
+		fmt.Println(data)
+	}
+	go chat.StartServer()
+	go chat.State().Conversation.StartSendService()
+	go chat.State().Conversation.ReceiveMessageProcessor(chat.State().Conversation.State().ReceiveQueue)
+	if *host == false {
+		err := chat.InitiateConnection()
+		if err != nil {
+			fmt.Println(err)
+		}
+		time.Sleep(time.Second * 5)
+		go chat.StartKeyNegotiatingService()
+	}
+	go printChat(chat.State().Conversation.State().DisplayQueue)
+	listenToInput(chat)
+}
 
-	}
-	hostConversationInfo := &ConversationInfo{
-		Hostname:                             "127.0.0.1:9000",
-		PrivateKey:                           *privateKey,
-		PublicKey:                            *publicKey,
-		SendingMessageKeys:                   []MessageKey{MessageKey{ID: 0, Key: messageKeys[2].Key}},
-		ReceivingMessageKeys:                 []MessageKey{MessageKey{ID: 0, Key: messageKeys[0].Key}, MessageKey{ID: 1, Key: messageKeys[1].Key}},
-		SendingMessageIndex:                  0,
-		SendingMessageKeyInitializersIndex:   0,
-		ReceivingMessageIndex:                0,
-		ReceivingMessageKeyInitializersIndex: 1,
-		SendQueue:                            make(chan MessageEncrypted),
-		RecieveQueue:                         make(chan MessageEncrypted),
-	}
-	hostConversation := NewConversation(*hostConversationInfo)
-
-	privateKey2, publicKey2, err := RSATools.GenerateRSAKey(rand.Reader)
-	if err != nil {
-		fmt.Println(err)
-	}
-	partnerConversationInfo := &ConversationInfo{
-		Hostname:                             "127.0.0.1:9001",
-		PrivateKey:                           *privateKey2,
-		PublicKey:                            *publicKey2,
-		SendingMessageKeys:                   []MessageKey{MessageKey{ID: 0, Key: messageKeys[0].Key}, MessageKey{ID: 1, Key: messageKeys[1].Key}},
-		ReceivingMessageKeys:                 []MessageKey{MessageKey{ID: 0, Key: messageKeys[2].Key}},
-		SendingMessageIndex:                  0,
-		SendingMessageKeyInitializersIndex:   1,
-		ReceivingMessageIndex:                0,
-		ReceivingMessageKeyInitializersIndex: 0,
-		PartnerPublicKey:                     publicKey,
-		PartnerHostname:                      "127.0.0.1:9000",
-		SendQueue:                            make(chan MessageEncrypted),
-		RecieveQueue:                         make(chan MessageEncrypted),
-	}
-
-	partnerConversation := NewConversation(*partnerConversationInfo)
-
-	partnerPublicKeys, err := partnerConversation.CreateReceiveKeyInitializers(5)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	initialMessage := InitialMessage{
-		PublicKey:         partnerConversation.State().PublicKey,
-		PartnerPublicKeys: partnerPublicKeys,
-	}
-
-	header := Header{
-		MessageType:    1,
-		MessageVersion: 1,
-		Hostname:       partnerConversation.State().Hostname,
-	}
-
-	unEncryptedMessage := MessageUnencrypted{
-		ID:     0,
-		Header: header,
-		Body:   initialMessage,
-	}
-
-	go LinkConvos(partnerConversation.State().SendQueue, hostConversation)
-
-	go LinkConvos(hostConversation.State().SendQueue, partnerConversation)
-
-	time.Sleep(time.Second * 2)
-	fmt.Println("Initial Connection and Key Negotation")
-	err = partnerConversation.StartConnection(unEncryptedMessage)
-	if err != nil {
-		fmt.Println(err)
-
-	}
-	time.Sleep(time.Second * 5)
-	fmt.Println(reflect.DeepEqual(partnerConversation.State().SendingMessageKeys, hostConversation.State().ReceivingMessageKeys))
-	fmt.Println(reflect.DeepEqual(partnerConversation.State().ReceivingMessageKeys, hostConversation.State().SendingMessageKeys))
-
-	time.Sleep(time.Second * 5)
-	partnerPublicKeys, err = partnerConversation.CreateReceiveKeyInitializers(5)
-	if err != nil {
-		fmt.Println(err)
-
-	}
-	for _, partnerKeyInitalizer := range partnerPublicKeys {
-		partnerKeyInitalizer.Key = nil
-		partnerKeyInitalizer.PrivateKey = nil
-	}
-	negotiateMessage := NegotiateKeysMessage{
-		PartnerPublicKeys: &partnerPublicKeys,
-	}
-
-	header = Header{
-		MessageType:    2,
-		MessageVersion: 1,
-		Hostname:       partnerConversation.State().Hostname,
-	}
-
-	unEncryptedMessage = MessageUnencrypted{
-		ID:     partnerConversation.State().SendingMessageIndex,
-		Header: header,
-		Body:   negotiateMessage,
-	}
-	fmt.Println("Key Negotation")
-	err = partnerConversation.NegotiateKeys(unEncryptedMessage)
-	if err != nil {
-		fmt.Println(err)
-	}
-	time.Sleep(time.Second * 5)
-	fmt.Println(reflect.DeepEqual(partnerConversation.State().SendingMessageKeys, hostConversation.State().ReceivingMessageKeys))
-	fmt.Println(reflect.DeepEqual(partnerConversation.State().ReceivingMessageKeys, hostConversation.State().SendingMessageKeys))
-	textMessage := TextMessage{
-		Body: "Test",
-	}
-
-	header = Header{
-		MessageType:    3,
-		MessageVersion: 1,
-		Hostname:       partnerConversation.State().Hostname,
-	}
-
-	unEncryptedMessage = MessageUnencrypted{
-		ID:     partnerConversation.State().SendingMessageIndex,
-		Header: header,
-		Body:   textMessage,
-	}
-	message, err := partnerConversation.PrepareMessage(unEncryptedMessage)
-	if err != nil {
-		fmt.Println(err)
-	}
-	err = partnerConversation.SendMessage(*message)
+func listenToInput(chat Chat) {
 	for {
-
+		reader := bufio.NewReader(os.Stdin)
+		text, _ := reader.ReadString('\n')
+		chat.SendTextMessage(text)
 	}
 }
 
-func LinkConvos(queue1 chan MessageEncrypted, conversation Conversation) {
+func printChat(messages chan TextMessage) {
 	for {
-		message := <-queue1
-		err := conversation.ReceiveMessage(message)
-		if err != nil {
-			fmt.Println(err)
-		}
+		message := <-messages
+		fmt.Print("\n" + message.Name + ": " + message.Body)
+	}
+}
+
+func printStats(hostChat Chat) {
+	for {
+		fmt.Print("\n\nHost Chat:\n")
+		fmt.Print("Send Keys: ")
+		fmt.Print(len(hostChat.State().Conversation.State().SendingMessageKeys))
+		fmt.Print("\nReceive Keys: ")
+		fmt.Print(len(hostChat.State().Conversation.State().ReceivingMessageKeys))
+		fmt.Print("\n\n")
+		time.Sleep(time.Second * 5)
 	}
 }

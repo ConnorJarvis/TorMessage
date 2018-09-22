@@ -1,9 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
+	"encoding/base64"
+	"encoding/gob"
 	"errors"
 	"fmt"
+	"net"
+	"time"
 )
 
 type conversationTools struct {
@@ -64,7 +69,10 @@ func (e *conversationTools) ReceiveMessage(encryptedMessage MessageEncrypted) er
 			}
 			initialMessage := messageBody.(*InitialMessage)
 			e.ConversationState.PartnerPublicKey = &initialMessage.PublicKey
-			go e.HandleNegotiateKeyMessage(&NegotiateKeysMessage{PartnerPublicKeys: &initialMessage.PartnerPublicKeys})
+			err = e.HandleNegotiateKeyMessage(&NegotiateKeysMessage{PartnerPublicKeys: &initialMessage.PartnerPublicKeys})
+			if err != nil {
+				return err
+			}
 		}
 
 	} else {
@@ -90,13 +98,19 @@ func (e *conversationTools) ReceiveMessage(encryptedMessage MessageEncrypted) er
 				return err
 			}
 
-			go e.HandleNegotiateKeyMessage(messageBody.(*NegotiateKeysMessage))
+			err = e.HandleNegotiateKeyMessage(messageBody.(*NegotiateKeysMessage))
+			if err != nil {
+				return err
+			}
 		} else if messageHeader.MessageType == 3 {
 			messageBody, err := AESTools.DecryptMessageBody(encryptedMessage.Body, messageKey.Key, encryptedMessage.BodyNonce, 3)
 			if err != nil {
 				return err
 			}
-			go e.HandleTextMessage(messageBody.(*TextMessage))
+			err = e.HandleTextMessage(messageBody.(*TextMessage))
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -155,17 +169,17 @@ func (e *conversationTools) RemoveReceiveMessageKey(id int) error {
 }
 
 func (e *conversationTools) HandleTextMessage(textMessage *TextMessage) error {
-	fmt.Println(textMessage.Body)
+	e.ConversationState.DisplayQueue <- *textMessage
 	return nil
 }
 
 func (e *conversationTools) HandleNegotiateKeyMessage(negotiateKeyMessage *NegotiateKeysMessage) error {
 	if negotiateKeyMessage.HostPublicKeys == nil {
-		hostKeyInitializers, err := e.CreateReceiveKeyInitializers(5)
+		hostKeyInitializers, err := e.CreateReceiveKeyInitializers(10)
 		if err != nil {
 			return err
 		}
-		partnerKeyInitializers, err := e.CreateSendKeyInitializers(5)
+		partnerKeyInitializers, err := e.CreateSendKeyInitializers(10)
 		if err != nil {
 			return err
 		}
@@ -223,7 +237,7 @@ func (e *conversationTools) HandleNegotiateKeyMessage(negotiateKeyMessage *Negot
 			e.ConversationState.ReceivingMessageKeys = append(e.ConversationState.ReceivingMessageKeys, messageKey)
 		}
 
-		hostKeyInitializers, err := e.CreateSendKeyInitializers(5)
+		hostKeyInitializers, err := e.CreateSendKeyInitializers(10)
 		if err != nil {
 			return err
 		}
@@ -315,14 +329,7 @@ func (e *conversationTools) PrepareNegotiateKeysMessage(partnerPublicKeys *[]Mes
 		Header: header,
 		Body:   &NegotiateKeysMessage,
 	}
-	encryptedMessage, err := e.PrepareMessage(unEncryptedMessage)
-	if err != nil {
-		return err
-	}
-	err = e.SendMessage(*encryptedMessage)
-	if err != nil {
-		return err
-	}
+	e.ConversationState.SendQueue <- unEncryptedMessage
 	return nil
 
 }
@@ -345,28 +352,14 @@ func (e *conversationTools) PrepareMessage(unEncryptedMessage MessageUnencrypted
 	return encryptedMessage, nil
 }
 
-func (e *conversationTools) SendMessage(encryptedMessage MessageEncrypted) error {
-
-	e.ConversationState.SendingMessageIndex++
-	e.ConversationState.SendQueue <- encryptedMessage
-
-	return nil
-}
-
 func (e *conversationTools) StartConnection(unEncryptedMessage MessageUnencrypted) error {
 
 	body := unEncryptedMessage.Body.(InitialMessage)
 	for _, init := range body.PartnerPublicKeys {
 		e.ConversationState.ReceivingMessageKeyInitializers = append(e.ConversationState.ReceivingMessageKeyInitializers, init)
 	}
-	encryptedMessage, err := e.PrepareMessage(unEncryptedMessage)
-	if err != nil {
-		return err
-	}
-	err = e.SendMessage(*encryptedMessage)
-	if err != nil {
-		return err
-	}
+	e.ConversationState.SendQueue <- unEncryptedMessage
+
 	return nil
 }
 
@@ -376,13 +369,54 @@ func (e *conversationTools) NegotiateKeys(unEncryptedMessage MessageUnencrypted)
 	for _, init := range *body.PartnerPublicKeys {
 		e.ConversationState.ReceivingMessageKeyInitializers = append(e.ConversationState.ReceivingMessageKeyInitializers, init)
 	}
-	encryptedMessage, err := e.PrepareMessage(unEncryptedMessage)
-	if err != nil {
-		return err
-	}
-	err = e.SendMessage(*encryptedMessage)
-	if err != nil {
-		return err
-	}
+	e.ConversationState.SendQueue <- unEncryptedMessage
+
 	return nil
+}
+
+func (e *conversationTools) ReceiveMessageProcessor(receiveChannel chan MessageEncrypted) {
+	for {
+		message := <-receiveChannel
+		e.ReceiveMessage(message)
+	}
+}
+
+func (e *conversationTools) StartSendService() {
+	for {
+		message := <-e.ConversationState.SendQueue
+		if (len(e.ConversationState.SendingMessageKeys) < 5 || len(e.ConversationState.ReceivingMessageKeys) < 5) && message.Header.MessageType == 3 {
+			go func() {
+				time.Sleep(time.Millisecond * 100)
+				e.ConversationState.SendQueue <- message
+			}()
+		} else {
+			if e.ConversationState.SendingMessageIndex != message.ID {
+				fmt.Println("Changed ID")
+			}
+			message.ID = e.ConversationState.SendingMessageIndex
+			encryptedMessage, err := e.PrepareMessage(message)
+			if err != nil {
+				fmt.Println(err)
+			}
+			e.ConversationState.SendingMessageIndex++
+			bytes := bytes.Buffer{}
+			encoder := gob.NewEncoder(&bytes)
+			err = encoder.Encode(encryptedMessage)
+			if err != nil {
+				fmt.Println(err)
+			}
+			encoded := base64.StdEncoding.EncodeToString(bytes.Bytes())
+			conn, err := net.Dial("tcp", e.ConversationState.PartnerHostname)
+			defer conn.Close()
+
+			if err != nil {
+				fmt.Println(err)
+			}
+
+			conn.Write([]byte(encoded))
+			conn.Write([]byte("\n"))
+			conn.Close()
+		}
+
+	}
 }

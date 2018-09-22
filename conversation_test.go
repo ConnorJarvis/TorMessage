@@ -175,12 +175,15 @@ func TestRemoveReceiveMessageKey(t *testing.T) {
 
 func TestGetReceiveMessageKeyInitializer(t *testing.T) {
 	hostConversation := NewConversation(hostConversationInfo)
-	receiveKeyInitalizers, err := hostConversation.CreateReceiveKeyInitializers(1)
+	_, err := hostConversation.CreateReceiveKeyInitializers(1)
 	if err != nil {
 		t.Error(err)
 	}
-
-	if !reflect.DeepEqual(receiveKeyInitalizers[0], hostConversation.State().ReceivingMessageKeyInitializers[0]) {
+	receiveKeyInitalizer, err := hostConversation.GetReceiveMessageKeyInitializer(2)
+	if err != nil {
+		t.Error(err)
+	}
+	if !reflect.DeepEqual(*receiveKeyInitalizer, hostConversation.State().ReceivingMessageKeyInitializers[0]) {
 		t.Error("failed to get receive key initalizer")
 	}
 

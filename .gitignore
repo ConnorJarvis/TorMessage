@@ -13,3 +13,5 @@
 .DS_Store
 Test
 coverage.txt
+main
+TorMessage

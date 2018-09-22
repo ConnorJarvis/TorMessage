@@ -8,6 +8,7 @@ install:
 - go get golang.org/x/crypto/curve25519
 - go get golang.org/x/tools/cmd/cover
 - go get github.com/mattn/goveralls 
+- go get github.com/firstrow/tcp_server
 
 script:
 - go get github.com/ConnorJarvis/TorMessage
