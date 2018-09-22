@@ -8,6 +8,13 @@ import (
 	"io"
 )
 
+type Messages interface {
+	EncryptMessage(MessageUnencrypted, MessageKey, rsa.PrivateKey) (*MessageEncrypted, error)
+	DecryptMessage(MessageEncrypted, MessageKey) (*MessageUnencrypted, error)
+	SignMessage(io.Reader, rsa.PrivateKey, MessageEncrypted) (*MessageEncrypted, error)
+	VerifyMessage(io.Reader, rsa.PublicKey, MessageEncrypted) error
+}
+
 type messageTools struct {
 	Messages
 }

@@ -5,6 +5,10 @@ import (
 	"io"
 )
 
+type RSA interface {
+	GenerateRSAKey(io.Reader) (*rsa.PrivateKey, *rsa.PublicKey, error)
+}
+
 type rsaTools struct {
 	RSA
 }

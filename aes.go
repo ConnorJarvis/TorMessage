@@ -8,6 +8,17 @@ import (
 	"io"
 )
 
+type AES interface {
+	Encrypt([]byte, []byte, []byte) ([]byte, error)
+	Decrypt([]byte, []byte, []byte) ([]byte, error)
+	GenerateAESKey(io.Reader) ([]byte, error)
+	GenerateAESNonce(io.Reader) ([]byte, error)
+	EncryptHeader(Header, []byte, []byte) ([]byte, error)
+	DecryptHeader([]byte, []byte, []byte) (*Header, error)
+	EncryptMessageBody(interface{}, []byte, []byte) ([]byte, error)
+	DecryptMessageBody([]byte, []byte, []byte, int) (interface{}, error)
+}
+
 type aesTools struct {
 	AES
 }

@@ -11,6 +11,28 @@ import (
 	"time"
 )
 
+type Conversation interface {
+	CreateSendKeyInitializers(int) ([]MessageKeyInitializer, error)
+	CreateReceiveKeyInitializers(int) ([]MessageKeyInitializer, error)
+	ComputeKeyMessages([]MessageKeyInitializer, []MessageKeyInitializer) ([]MessageKey, error)
+	State() ConversationInfo
+	ReceiveMessage(MessageEncrypted) error
+	GetSendMessageKey(int) (*MessageKey, error)
+	GetReceiveMessageKey(int) (*MessageKey, error)
+	GetReceiveMessageKeyInitializer(int) (*MessageKeyInitializer, error)
+	RemoveReceiveMessageKey(int) error
+	RemoveSendMessageKey(int) error
+	HandleNegotiateKeysMessage(*NegotiateKeysMessage) error
+	HandleTextMessage(*TextMessage) error
+	PrepareMessage(MessageUnencrypted) (*MessageEncrypted, error)
+	SendMessage(MessageEncrypted) error
+	PrepareNegotiateKeysMessage(*[]MessageKeyInitializer, *[]MessageKeyInitializer) error
+	StartConnection(MessageUnencrypted) error
+	NegotiateKeys(MessageUnencrypted) error
+	ReceiveMessageProcessor(chan MessageEncrypted)
+	StartSendService()
+}
+
 type conversationTools struct {
 	Conversation
 	ConversationState ConversationInfo

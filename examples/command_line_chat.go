@@ -1,4 +1,4 @@
-package tormessage
+package main
 
 import (
 	"bufio"

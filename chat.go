@@ -11,6 +11,16 @@ import (
 	"github.com/firstrow/tcp_server"
 )
 
+type Chat interface {
+	InitializeConversation(*string) (*string, error)
+	InitiateConnection() error
+	NegotiateNewKeys() error
+	SendTextMessage(string) error
+	State() ChatInformation
+	StartServer()
+	StartKeyNegotiatingService()
+}
+
 type chatTools struct {
 	Chat
 	ChatState ChatInformation
