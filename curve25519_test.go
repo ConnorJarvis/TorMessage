@@ -1,4 +1,4 @@
-package main
+package tormessage
 
 import (
 	"bytes"

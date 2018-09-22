@@ -7,7 +7,7 @@ Work in progress messenger that communicates over Tor and supports forward secre
 
 To build run:
 - `go get go get golang.org/x/crypto/curve25519`
-- `github.com/firstrow/tcp_server`
+- `go get github.com/firstrow/tcp_server`
 - `go build ./`
 
 To start a conversation run:
