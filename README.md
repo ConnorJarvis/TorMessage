@@ -6,18 +6,17 @@
 Work in progress messenger that communicates over Tor and supports forward secrecy
 
 To build run:
-- `go get go get golang.org/x/crypto/curve25519`
-- `go get github.com/firstrow/tcp_server`
-- `go build ./`
+- `go get github.com/ConnorJarvis/TorMessage`
+- `go build ./examples/command_line_chat.go`
 
 To start a conversation run:
-- `./TorMessage -hostname 127.0.0.1:9000 -name Connor -host`
+- `./command_line_chat -hostname 127.0.0.1:9000 -name Connor -host`
 
 This will start hosting a conversation and output a base64 string
-![Conversation Start](https://i.vangel.io/IOzbh.png)
+![Conversation Start](https://i.vangel.io/pMuVa.png)
 
 To start the partner conversation run:
-- `./TorMessage -hostname 127.0.0.1:9001 -name Connor2 -extradata $base64_string`
+- `./command_line_chat -hostname 127.0.0.1:9001 -name Connor2 -extradata $base64_string`
 
 This base64 string contains the hostname, public key and 3 initial keys needed to initialize a conversation
 

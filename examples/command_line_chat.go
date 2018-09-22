@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	"github.com/ConnorJarvis/TorMessage"
 )
 
 func main() {
@@ -16,21 +18,21 @@ func main() {
 
 	flag.Parse()
 
-	chatInfo := ChatInformation{
+	chatInfo := tormessage.ChatInformation{
 		Hostname: *hostname,
 		Host:     *host,
 		Name:     *name,
 	}
-	var chat Chat
+	var chat tormessage.Chat
 	if *host == true {
-		chat = NewChat(chatInfo)
+		chat = tormessage.NewChat(chatInfo)
 		data, err := chat.InitializeConversation(nil)
 		if err != nil {
 			fmt.Println(err)
 		}
 		fmt.Println(*data)
 	} else {
-		chat = NewChat(chatInfo)
+		chat = tormessage.NewChat(chatInfo)
 		data, err := chat.InitializeConversation(extradata)
 		if err != nil {
 			fmt.Println(err)
@@ -52,7 +54,7 @@ func main() {
 	listenToInput(chat)
 }
 
-func listenToInput(chat Chat) {
+func listenToInput(chat tormessage.Chat) {
 	for {
 		reader := bufio.NewReader(os.Stdin)
 		text, _ := reader.ReadString('\n')
@@ -60,14 +62,14 @@ func listenToInput(chat Chat) {
 	}
 }
 
-func printChat(messages chan TextMessage) {
+func printChat(messages chan tormessage.TextMessage) {
 	for {
 		message := <-messages
 		fmt.Print("\n" + message.Name + ": " + message.Body)
 	}
 }
 
-func printStats(hostChat Chat) {
+func printStats(hostChat tormessage.Chat) {
 	for {
 		fmt.Print("\n\nHost Chat:\n")
 		fmt.Print("Send Keys: ")
