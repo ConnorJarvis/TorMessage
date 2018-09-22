@@ -37,8 +37,8 @@ func init() {
 		SendingMessageKeyInitializersIndex:   0,
 		ReceivingMessageIndex:                0,
 		ReceivingMessageKeyInitializersIndex: 1,
-		SendQueue:                            make(chan MessageEncrypted),
-		RecieveQueue:                         make(chan MessageEncrypted),
+		SendQueue:                            make(chan MessageUnencrypted),
+		ReceiveQueue:                         make(chan MessageEncrypted),
 	}
 
 	privateKey2, publicKey2, err := RSATools.GenerateRSAKey(rand.Reader)
@@ -57,8 +57,8 @@ func init() {
 		ReceivingMessageKeyInitializersIndex: 0,
 		PartnerPublicKey:                     publicKey,
 		PartnerHostname:                      "127.0.0.1:9000",
-		SendQueue:                            make(chan MessageEncrypted),
-		RecieveQueue:                         make(chan MessageEncrypted),
+		SendQueue:                            make(chan MessageUnencrypted),
+		ReceiveQueue:                         make(chan MessageEncrypted),
 	}
 
 }
